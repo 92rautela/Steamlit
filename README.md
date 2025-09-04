@@ -1,3 +1,4 @@
+[main.py](https://github.com/user-attachments/files/22145433/main.py)
 import streamlit as st
 from datetime import date
 
@@ -17,4 +18,3 @@ age_years = today.year - dob.year
 
 # Show result
 st.write(f"🎂 Your age is: **{age_years}** years")
-
