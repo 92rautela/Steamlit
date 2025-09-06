@@ -228,22 +228,7 @@ if not st.session_state.expenses_df.empty:
                 use_container_width=True
             )
 
-        elif download_format == "Excel":
-            # Create Excel file in memory
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                st.session_state.expenses_df.to_excel(writer, index=False, sheet_name='Expenses')
-            excel_data = output.getvalue()
-
-            st.download_button(
-                label="📥 Download Excel",
-                data=excel_data,
-                file_name=f"expenses_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-
-        elif download_format == "TXT":
+        else download_format == "TXT":
             # Create text format
             txt_data = "Personal Budget Tracker - Expenses Report\n"
             txt_data += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
