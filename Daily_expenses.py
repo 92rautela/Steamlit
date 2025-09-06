@@ -4,7 +4,7 @@ from datetime import datetime, date
 import os
 import tempfile
 import io
-import openpyxl
+
 
 # Set page config
 st.set_page_config(page_title="Budget Tracker", page_icon="💰", layout="centered")
