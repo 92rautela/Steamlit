@@ -228,7 +228,7 @@ if not st.session_state.expenses_df.empty:
                 use_container_width=True
             )
 
-        else download_format == "TXT":
+        else download_format == "TXT"
             # Create text format
             txt_data = "Personal Budget Tracker - Expenses Report\n"
             txt_data += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
