@@ -284,20 +284,6 @@ if not st.session_state.expenses_df.empty:
     if save_to_csv(st.session_state.expenses_df):
         st.success("✅ Changes saved!")
 
-    # Clear all data option
-    st.markdown("---")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🗑️ Clear All Data", use_container_width=True):
-            st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
-            try:
-                if os.path.exists(PERSISTENT_FILE):
-                    os.remove(PERSISTENT_FILE)
-                st.success("✅ All data cleared!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error clearing data: {e}")
-
 else:
     st.info("📝 No expenses found. Add your first expense above!")
     st.caption(f"💾 Data will be stored")
