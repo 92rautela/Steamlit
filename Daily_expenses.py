@@ -4,7 +4,7 @@ from datetime import datetime, date
 import os
 import tempfile
 import io
-
+import openpyxl
 
 # Set page config
 st.set_page_config(page_title="Budget Tracker", page_icon="💰", layout="centered")
@@ -29,6 +29,43 @@ header {visibility: hidden;}
     border-radius: 15px;
     text-align: center;
     margin-bottom: 20px;
+    font-weight: bold;
+}
+
+.income-expense-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.income-box {
+    background: linear-gradient(135deg, #10B981, #059669);
+    color: white;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    flex: 1;
+    font-weight: bold;
+}
+
+.total-amount-box {
+    background: linear-gradient(135deg, #EF4444, #DC2626);
+    color: white;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    flex: 1;
+    font-weight: bold;
+}
+
+.box-title {
+    font-size: 12px;
+    opacity: 0.9;
+    margin-bottom: 5px;
+}
+
+.box-value {
+    font-size: 18px;
     font-weight: bold;
 }
 
@@ -97,7 +134,7 @@ header {visibility: hidden;}
 # ✅ File Path
 # ----------------------------
 PERSISTENT_FILE = os.path.join(tempfile.gettempdir(), "budget_tracker_expenses.csv")
-
+INCOME_FILE = os.path.join(tempfile.gettempdir(), "budget_tracker_income.csv")
 
 # ----------------------------
 # ✅ Load and Save Functions
@@ -113,6 +150,14 @@ def load_expenses():
             st.error(f"Error loading data: {e}")
     return pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
 
+def load_income():
+    if os.path.exists(INCOME_FILE):
+        try:
+            df = pd.read_csv(INCOME_FILE)
+            return df['Income'].iloc[0] if not df.empty else 0.0
+        except Exception as e:
+            st.error(f"Error loading income: {e}")
+    return 0.0
 
 def save_to_csv(df):
     try:
@@ -123,6 +168,15 @@ def save_to_csv(df):
         st.error(f"Error saving: {e}")
         return False
 
+def save_income(income):
+    try:
+        os.makedirs(os.path.dirname(INCOME_FILE), exist_ok=True)
+        income_df = pd.DataFrame({'Income': [income]})
+        income_df.to_csv(INCOME_FILE, index=False)
+        return True
+    except Exception as e:
+        st.error(f"Error saving income: {e}")
+        return False
 
 # ----------------------------
 # ✅ Session State Initialization
@@ -130,8 +184,12 @@ def save_to_csv(df):
 if 'expenses_df' not in st.session_state:
     st.session_state.expenses_df = load_expenses()
 
+if 'income' not in st.session_state:
+    st.session_state.income = load_income()
+
 if 'last_refresh' not in st.session_state or st.session_state.get('force_refresh', False):
     st.session_state.expenses_df = load_expenses()
+    st.session_state.income = load_income()
     st.session_state.last_refresh = datetime.now()
     st.session_state.force_refresh = False
 
@@ -142,6 +200,50 @@ st.markdown('<div class="main-container">', unsafe_allow_html=True)
 st.markdown("""
 <div class="header-box">
     💰 Personal Budget Tracker 💰 
+</div>
+""", unsafe_allow_html=True)
+
+# ----------------------------
+# ✅ Income Input and Total Display
+# ----------------------------
+# Calculate total expenses
+total_expenses = st.session_state.expenses_df['Price'].sum() if not st.session_state.expenses_df.empty else 0.0
+
+# Income input section
+st.markdown("**💚 Set Your Income:**")
+col1, col2 = st.columns([2, 1])
+with col1:
+    new_income = st.number_input("Monthly Income (₹)", value=st.session_state.income, min_value=0.0, step=100.0)
+with col2:
+    if st.button("💾 Save", key="save_income"):
+        st.session_state.income = new_income
+        if save_income(new_income):
+            st.success("✅ Income saved!")
+
+# Display boxes
+st.markdown(f"""
+<div class="income-expense-container">
+    <div class="income-box">
+        <div class="box-title">💚 INCOME</div>
+        <div class="box-value">₹{st.session_state.income:,.2f}</div>
+    </div>
+    <div class="total-amount-box">
+        <div class="box-title">❤️ TOTAL EXPENSES</div>
+        <div class="box-value">₹{total_expenses:,.2f}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# Remaining balance
+remaining = st.session_state.income - total_expenses
+balance_color = "green" if remaining >= 0 else "red"
+balance_icon = "✅" if remaining >= 0 else "⚠️"
+
+st.markdown(f"""
+<div style="text-align: center; padding: 10px; background-color: #F3F4F6; border-radius: 8px; margin: 10px 0;">
+    <span style="color: {balance_color}; font-weight: bold; font-size: 16px;">
+        {balance_icon} Remaining Balance: ₹{remaining:,.2f}
+    </span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -214,7 +316,7 @@ if not st.session_state.expenses_df.empty:
         # Simple download format selection
         download_format = st.selectbox(
             "📥 Download Format:",
-            ["Select Format", "CSV", "TXT"],
+            ["Select Format", "CSV", "Excel", "TXT"],
             key="download_format"
         )
 
@@ -225,6 +327,21 @@ if not st.session_state.expenses_df.empty:
                 data=csv_data,
                 file_name=f"expenses_{datetime.now().strftime('%Y_%m_%d')}.csv",
                 mime="text/csv",
+                use_container_width=True
+            )
+
+        elif download_format == "Excel":
+            # Create Excel file in memory
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                st.session_state.expenses_df.to_excel(writer, index=False, sheet_name='Expenses')
+            excel_data = output.getvalue()
+
+            st.download_button(
+                label="📥 Download Excel",
+                data=excel_data,
+                file_name=f"expenses_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
 
@@ -279,7 +396,25 @@ if not st.session_state.expenses_df.empty:
             "Note": st.column_config.TextColumn("📋 Note")
         }
     )
-    
+
+    # Save edits automatically
+    if save_to_csv(st.session_state.expenses_df):
+        st.success("✅ Changes saved!")
+
+    # Clear all data option
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🗑️ Clear All Data", use_container_width=True):
+            st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
+            try:
+                if os.path.exists(PERSISTENT_FILE):
+                    os.remove(PERSISTENT_FILE)
+                st.success("✅ All data cleared!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error clearing data: {e}")
+
 else:
     st.info("📝 No expenses found. Add your first expense above!")
     st.caption(f"💾 Data will be stored")
