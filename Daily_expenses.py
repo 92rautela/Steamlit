@@ -74,6 +74,13 @@ div[data-baseweb="input"] input {
     border-radius: 8px;
     border: 1px solid #10B981 !important;
 }
+.stNumberInput > div > div > input,
+.stTextInput > div > div > input,
+.stDateInput > div > div > input {
+    border: 1px solid #D1D5DB;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 16px;
 
 /* Submit button gray */
 .stForm button {
