@@ -279,29 +279,7 @@ if not st.session_state.expenses_df.empty:
             "Note": st.column_config.TextColumn("📋 Note")
         }
     )
-    # Clear 1 Month Old Data option
-    st.markdown("---")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🗑️ Clear 1 Month Old Data", use_container_width=True):
-            try:
-                today = date.today()
-                # 30 दिन से नया data ही रखो
-                st.session_state.expenses_df = st.session_state.expenses_df[
-                    pd.to_datetime(st.session_state.expenses_df["Date"]) >= (pd.to_datetime(today) - pd.Timedelta(days=30))
-                ].reset_index(drop=True)
-
-                # Save back to CSV
-                save_to_csv(st.session_state.expenses_df)
-
-                st.success("✅ Data older than 1 month cleared!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error clearing data: {e}")
-
-        # Save edits automatically
-        if save_to_csv(st.session_state.expenses_df):
-            st.success("✅ Changes saved!")
+    
 else:
     st.info("📝 No expenses found. Add your first expense above!")
     st.caption(f"💾 Data will be stored")
