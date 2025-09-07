@@ -328,23 +328,23 @@ if not st.session_state.expenses_df.empty:
                 mime="text/csv",
                 use_container_width=True
             )
-           for idx, row in st.session_state.expenses_df.iterrows():
-               txt_data += f"Date: {row['Date']}\n"
-                txt_data += f"Item: {row['Item']}\n"
-                txt_data += f"Price: ₹{row['Price']:.2f}\n"
-                txt_data += f"Note: {row['Note']}\n"
-                txt_data += "-" * 30 + "\n"
+        for idx, row in st.session_state.expenses_df.iterrows():
+           txt_data += f"Date: {row['Date']}\n"
+            txt_data += f"Item: {row['Item']}\n"
+            txt_data += f"Price: ₹{row['Price']:.2f}\n"
+            txt_data += f"Note: {row['Note']}\n"
+            txt_data += "-" * 30 + "\n"
 
-            txt_data += f"\nTotal Items: {len(st.session_state.expenses_df)}\n"
-            txt_data += f"Total Amount: ₹{st.session_state.expenses_df['Price'].sum():.2f}\n"
+        txt_data += f"\nTotal Items: {len(st.session_state.expenses_df)}\n"
+        txt_data += f"Total Amount: ₹{st.session_state.expenses_df['Price'].sum():.2f}\n"
 
-            st.download_button(
-                label="📥 Download TXT",
-                data=txt_data,
-                file_name="daily_expenses.txt",
-                mime="text/plain",
-                use_container_width=True
-            )
+        st.download_button(
+            label="📥 Download TXT",
+            data=txt_data,
+            file_name="daily_expenses.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
 
     st.markdown("### ✏️ Edit Expenses")
 
