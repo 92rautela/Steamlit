@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime, date
 import os
 import tempfile
-import io
 
 # Set page config
 st.set_page_config(page_title="Budget Tracker", page_icon="💰", layout="centered")
@@ -68,74 +67,6 @@ header {visibility: hidden;}
     font-weight: bold;
 }
 
-.info-box {
-    background: #FEF3C7;
-    border: 1px solid #F59E0B;
-    color: #92400E;
-    padding: 10px;
-    border-radius: 8px;
-    margin: 10px 0;
-    font-size: 14px;
-}
-
-.section-header {
-    color: #4B5563;
-    font-size: 16px;
-    font-weight: 600;
-    margin: 20px 0 10px 0;
-    display: flex;
-    align-items: center;
-}
-
-.stNumberInput > div > div > input,
-.stTextInput > div > div > input,
-.stDateInput > div > div > input {
-    border: 1px solid #D1D5DB;
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 16px;
-}
-
-.stButton > button {
-    background: linear-gradient(135deg, #8B5CF6, #A855F7);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 16px;
-    font-weight: 600;
-    width: 100%;
-    margin: 8px 0;
-    font-size: 14px;
-    height: 40px;
-}
-
-.stButton > button:hover {
-    background: linear-gradient(135deg, #7C3AED, #9333EA);
-    transform: translateY(-1px);
-}
-
-.stats-container {
-    background: #F9FAFB;
-    padding: 15px;
-    border-radius: 10px;
-    margin: 15px 0;
-}
-
-.stat-box {
-    text-align: center;
-    margin: 5px 0;
-}
-
-.stat-value {
-    font-size: 24px;
-    font-weight: bold;
-    color: #8B5CF6;
-}
-
-.stat-label {
-    font-size: 14px;
-    color: #6B7280;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -196,9 +127,6 @@ if 'expenses_df' not in st.session_state:
 if 'income' not in st.session_state:
     st.session_state.income = load_income()
 
-if 'income_saved' not in st.session_state:
-    st.session_state.income_saved = False
-
 if 'last_refresh' not in st.session_state or st.session_state.get('force_refresh', False):
     st.session_state.expenses_df = load_expenses()
     st.session_state.income = load_income()
@@ -216,7 +144,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# ✅ Income Input and Total Display
+# ✅ Income + Expenses Display
 # ----------------------------
 # Calculate total expenses
 total_expenses = 0.0
@@ -224,35 +152,30 @@ if not st.session_state.expenses_df.empty and 'Price' in st.session_state.expens
     price_values = pd.to_numeric(st.session_state.expenses_df['Price'], errors='coerce').fillna(0)
     total_expenses = price_values.sum()
 
-# ✅ INCOME box ko editable banaya
-col1, col2 = st.columns([2, 1])
+# Editable Income Box (Green Box)
+col1, col2 = st.columns(2)
 with col1:
-    new_income = st.number_input(
-        "💚 Income (Editable)", 
-        value=st.session_state.income, 
-        min_value=0.0, 
-        step=100.0
-    )
-with col2:
-    if st.button("💾 Save Income", key="save_income"):
-        st.session_state.income = new_income
-        if save_income(new_income):
-            st.session_state.income_saved = True
-            st.success("✅ Income saved!")
-
-# Display boxes
-st.markdown(f"""
-<div class="income-expense-container">
+    st.markdown("""
     <div class="income-box">
         <div class="box-title">💚 INCOME</div>
-        <div class="box-value">₹{st.session_state.income:,.2f}</div>
     </div>
+    """, unsafe_allow_html=True)
+    st.session_state.income = st.number_input(
+        "Edit Income",
+        value=float(st.session_state.income),
+        min_value=0.0,
+        step=100.0,
+        label_visibility="collapsed"
+    )
+    save_income(st.session_state.income)
+
+with col2:
+    st.markdown(f"""
     <div class="total-amount-box">
         <div class="box-title">❤️ TOTAL EXPENSES</div>
         <div class="box-value">₹{total_expenses:,.2f}</div>
     </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # Remaining balance
 remaining = st.session_state.income - total_expenses
@@ -270,35 +193,22 @@ st.markdown(f"""
 # ----------------------------
 # ✅ Add Expense Form
 # ----------------------------
-st.markdown("""
-<div class="section-header">
-    💸 Add New Expense
-</div>
-""", unsafe_allow_html=True)
+st.markdown("### 💸 Add New Expense")
 
 with st.form("expense_form", clear_on_submit=True):
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("**📅 Date:**")
         expense_date = st.date_input("", value=date.today(), label_visibility="collapsed")
-
-        st.markdown("**📝 Item Name:**")
         expense_item = st.text_input("", placeholder="e.g., Milk, Groceries", label_visibility="collapsed")
         if expense_item:
             expense_item = expense_item.title()
-            st.write("Formatted:", expense_item)
 
     with col2:
-        st.markdown("**💰 Price (₹):**")
         expense_price = st.number_input("", min_value=0.0, step=1.0, format="%.2f", label_visibility="collapsed")
-
-        st.markdown("**📋 Note:** *(optional)*")
         expense_note = st.text_input("", placeholder="Additional details", label_visibility="collapsed")
 
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        submitted = st.form_submit_button("Submit", use_container_width=True)
+    submitted = st.form_submit_button("Submit", use_container_width=True)
 
     if submitted:
         if expense_item.strip() and expense_price > 0:
@@ -313,63 +223,48 @@ with st.form("expense_form", clear_on_submit=True):
                 st.success("✅ Expense added and saved!")
                 st.session_state.force_refresh = True
                 st.rerun()
-            else:
-                st.error("❌ Error saving expense!")
-        else:
-            st.error("⚠️ Please enter item name and valid price!")
 
 # ----------------------------
-# ✅ Display & Editable Expenses
+# ✅ Editable Expenses
 # ----------------------------
 if not st.session_state.expenses_df.empty:
-    st.markdown("---")
-    st.markdown("### 📋 Recent Expenses")
     st.markdown("### ✏️ Edit Expenses")
 
     editable_df = st.session_state.expenses_df.copy()
+    editable_df["Date"] = pd.to_datetime(editable_df["Date"], errors="coerce").dt.date
+    editable_df["Price"] = pd.to_numeric(editable_df["Price"], errors="coerce").fillna(0.0)
+    editable_df["Item"] = editable_df["Item"].astype(str)
+    editable_df["Note"] = editable_df["Note"].astype(str)
 
-    if not editable_df.empty:
-        editable_df["Date"] = pd.to_datetime(editable_df["Date"], errors="coerce").dt.date
-        editable_df["Price"] = pd.to_numeric(editable_df["Price"], errors="coerce").fillna(0.0)
-        editable_df["Item"] = editable_df["Item"].astype(str)
-        editable_df["Note"] = editable_df["Note"].astype(str)
+    updated_df = st.data_editor(
+        editable_df,
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        column_config={
+            "Date": st.column_config.DateColumn("📅 Date"),
+            "Item": st.column_config.TextColumn("📝 Item"),
+            "Price": st.column_config.NumberColumn("💰 Price", format="₹%.2f"),
+            "Note": st.column_config.TextColumn("📋 Note")
+        }
+    )
 
-        updated_df = st.data_editor(
-            editable_df,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="dynamic",
-            column_config={
-                "Date": st.column_config.DateColumn("📅 Date"),
-                "Item": st.column_config.TextColumn("📝 Item (Editable)", help="Click to edit"),
-                "Price": st.column_config.NumberColumn("💰 Price", format="₹%.2f"),
-                "Note": st.column_config.TextColumn("📋 Note")
-            }
-        )
+    st.session_state.expenses_df = updated_df
+    save_to_csv(st.session_state.expenses_df)
 
-        st.session_state.expenses_df = updated_df
-
-        if save_to_csv(st.session_state.expenses_df):
-            st.success("✅ Changes saved automatically!")
-
-    # Clear all data option
-    st.markdown("---")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🗑️ Clear All Data", use_container_width=True):
-            st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
-            st.session_state.income = 0.0
-            st.session_state.income_saved = False
-            try:
-                if os.path.exists(PERSISTENT_FILE):
-                    os.remove(PERSISTENT_FILE)
-                if os.path.exists(INCOME_FILE):
-                    os.remove(INCOME_FILE)
-                st.success("✅ All data cleared!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error clearing data: {e}")
-
+    # Clear all data button
+    if st.button("🗑️ Clear All Data", use_container_width=True):
+        st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
+        st.session_state.income = 0.0
+        try:
+            if os.path.exists(PERSISTENT_FILE):
+                os.remove(PERSISTENT_FILE)
+            if os.path.exists(INCOME_FILE):
+                os.remove(INCOME_FILE)
+            st.success("✅ All data cleared!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error clearing data: {e}")
 else:
     st.info("📝 No expenses found. Add your first expense above!")
-    st.caption(f"💾 Data will be stored automatically")
+
