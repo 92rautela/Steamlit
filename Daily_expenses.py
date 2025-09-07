@@ -5,7 +5,6 @@ import os
 import tempfile
 import io
 
-
 # Set page config
 st.set_page_config(page_title="Budget Tracker", page_icon="💰", layout="centered")
 
@@ -316,7 +315,7 @@ if not st.session_state.expenses_df.empty:
         # Simple download format selection
         download_format = st.selectbox(
             "📥 Download Format:",
-            ["Select Format", "CSV",
+            ["Select Format", "CSV", "Excel", "TXT"],
             key="download_format"
         )
 
@@ -329,8 +328,7 @@ if not st.session_state.expenses_df.empty:
                 mime="text/csv",
                 use_container_width=True
             )
-
-                   for idx, row in st.session_state.expenses_df.iterrows():
+           for idx, row in st.session_state.expenses_df.iterrows():
                 txt_data += f"Date: {row['Date']}\n"
                 txt_data += f"Item: {row['Item']}\n"
                 txt_data += f"Price: ₹{row['Price']:.2f}\n"
