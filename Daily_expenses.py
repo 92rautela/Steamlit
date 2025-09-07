@@ -329,7 +329,7 @@ if not st.session_state.expenses_df.empty:
                 use_container_width=True
             )
         for idx, row in st.session_state.expenses_df.iterrows():
-           txt_data += f"Date: {row['Date']}\n"
+            txt_data += f"Date: {row['Date']}\n"
             txt_data += f"Item: {row['Item']}\n"
             txt_data += f"Price: ₹{row['Price']:.2f}\n"
             txt_data += f"Note: {row['Note']}\n"
