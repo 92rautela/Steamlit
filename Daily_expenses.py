@@ -67,6 +67,31 @@ header {visibility: hidden;}
     font-weight: bold;
 }
 
+/* ✅ Income number_input ko green box jaisa look */
+div[data-baseweb="input"] > input {
+    background: #10B981 !important;
+    color: white !important;
+    font-weight: bold;
+    border-radius: 8px;
+    text-align: center;
+}
+
+/* ✅ Submit button grey */
+.stForm button {
+    background: #9CA3AF !important; /* grey */
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-weight: 600 !important;
+    width: 100% !important;
+    margin: 8px 0 !important;
+    font-size: 14px !important;
+    height: 40px !important;
+}
+.stForm button:hover {
+    background: #6B7280 !important; /* darker grey */
+}
 </style>
 """, unsafe_allow_html=True)
 
