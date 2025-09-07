@@ -218,20 +218,23 @@ st.markdown("""
 # ----------------------------
 # ✅ Income Input and Total Display
 # ----------------------------
-# Calculate total expenses - FIXED
+# Calculate total expenses
 total_expenses = 0.0
 if not st.session_state.expenses_df.empty and 'Price' in st.session_state.expenses_df.columns:
-    # Convert to numeric to handle any string values
     price_values = pd.to_numeric(st.session_state.expenses_df['Price'], errors='coerce').fillna(0)
     total_expenses = price_values.sum()
 
-# Income input section
-st.markdown("**💚 Set Your Income:**")
+# ✅ INCOME box ko editable banaya
 col1, col2 = st.columns([2, 1])
 with col1:
-    new_income = st.number_input("Monthly Income (₹)", value=st.session_state.income, min_value=0.0, step=100.0)
+    new_income = st.number_input(
+        "💚 Income (Editable)", 
+        value=st.session_state.income, 
+        min_value=0.0, 
+        step=100.0
+    )
 with col2:
-    if st.button("💾 Save", key="save_income"):
+    if st.button("💾 Save Income", key="save_income"):
         st.session_state.income = new_income
         if save_income(new_income):
             st.session_state.income_saved = True
@@ -264,7 +267,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-
 # ----------------------------
 # ✅ Add Expense Form
 # ----------------------------
@@ -284,7 +286,7 @@ with st.form("expense_form", clear_on_submit=True):
         st.markdown("**📝 Item Name:**")
         expense_item = st.text_input("", placeholder="e.g., Milk, Groceries", label_visibility="collapsed")
         if expense_item:
-            expense_item = expense_item.title()  # Convert to Title Case
+            expense_item = expense_item.title()
             st.write("Formatted:", expense_item)
 
     with col2:
@@ -303,7 +305,7 @@ with st.form("expense_form", clear_on_submit=True):
             new_expense = pd.DataFrame({
                 'Date': [expense_date],
                 'Item': [expense_item.strip().title()],
-                'Price': [float(expense_price)],  # Ensure numeric
+                'Price': [float(expense_price)],
                 'Note': [expense_note.strip() if expense_note.strip() else "N/A"]
             })
             st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_expense], ignore_index=True)
@@ -322,43 +324,16 @@ with st.form("expense_form", clear_on_submit=True):
 if not st.session_state.expenses_df.empty:
     st.markdown("---")
     st.markdown("### 📋 Recent Expenses")
-
-    # 🔍 Stats + Download Button
-    total_items = len(st.session_state.expenses_df)
-    total_price = st.session_state.expenses_df['Price'].sum()
-    average_price = st.session_state.expenses_df['Price'].mean()
-    highest_price = st.session_state.expenses_df['Price'].max()
-
-    left_col, right_col = st.columns([3, 1])
-    with right_col:
-        # FIXED: Direct CSV download button only
-        csv_data = st.session_state.expenses_df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download CSV",
-            data=csv_data,
-            file_name=f"expenses_{datetime.now().strftime('%Y_%m_%d')}.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-
     st.markdown("### ✏️ Edit Expenses")
 
-    # FIXED: Proper data handling
     editable_df = st.session_state.expenses_df.copy()
 
-    # Ensure proper data types
     if not editable_df.empty:
-        # Make sure Date is datetime.date
         editable_df["Date"] = pd.to_datetime(editable_df["Date"], errors="coerce").dt.date
-
-        # Make sure Price is numeric
         editable_df["Price"] = pd.to_numeric(editable_df["Price"], errors="coerce").fillna(0.0)
-
-        # Convert Item and Note to string
         editable_df["Item"] = editable_df["Item"].astype(str)
         editable_df["Note"] = editable_df["Note"].astype(str)
 
-        # Editable Table
         updated_df = st.data_editor(
             editable_df,
             use_container_width=True,
@@ -372,10 +347,8 @@ if not st.session_state.expenses_df.empty:
             }
         )
 
-        # Update session state with edited data
         st.session_state.expenses_df = updated_df
 
-        # Save changes
         if save_to_csv(st.session_state.expenses_df):
             st.success("✅ Changes saved automatically!")
 
