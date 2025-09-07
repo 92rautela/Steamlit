@@ -4,7 +4,7 @@ from datetime import datetime, date
 import os
 import tempfile
 import io
-import openpyxl
+
 
 # Set page config
 st.set_page_config(page_title="Budget Tracker", page_icon="💰", layout="centered")
@@ -316,7 +316,7 @@ if not st.session_state.expenses_df.empty:
         # Simple download format selection
         download_format = st.selectbox(
             "📥 Download Format:",
-            ["Select Format", "CSV", "Excel", "TXT"],
+            ["Select Format", "CSV",
             key="download_format"
         )
 
@@ -330,28 +330,7 @@ if not st.session_state.expenses_df.empty:
                 use_container_width=True
             )
 
-        elif download_format == "Excel":
-            # Create Excel file in memory
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                st.session_state.expenses_df.to_excel(writer, index=False, sheet_name='Expenses')
-            excel_data = output.getvalue()
-
-            st.download_button(
-                label="📥 Download Excel",
-                data=excel_data,
-                file_name=f"expenses_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-
-        elif download_format == "TXT":
-            # Create text format
-            txt_data = "Personal Budget Tracker - Expenses Report\n"
-            txt_data += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            txt_data += "=" * 50 + "\n\n"
-
-            for idx, row in st.session_state.expenses_df.iterrows():
+                   for idx, row in st.session_state.expenses_df.iterrows():
                 txt_data += f"Date: {row['Date']}\n"
                 txt_data += f"Item: {row['Item']}\n"
                 txt_data += f"Price: ₹{row['Price']:.2f}\n"
