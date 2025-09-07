@@ -335,8 +335,13 @@ if not st.session_state.expenses_df.empty:
             txt_data += f"Note: {row['Note']}\n"
             txt_data += "-" * 30 + "\n"
 
-        txt_data += f"\nTotal Items: {len(st.session_state.expenses_df)}\n"
+        # Convert to string directly
+        txt_data += st.session_state.expenses_df.to_string(index=False)
+    
+        txt_data += f"\n\nSummary:\n"
+        txt_data += f"Total Items: {len(st.session_state.expenses_df)}\n"
         txt_data += f"Total Amount: ₹{st.session_state.expenses_df['Price'].sum():.2f}\n"
+       
 
         st.download_button(
             label="📥 Download TXT",
