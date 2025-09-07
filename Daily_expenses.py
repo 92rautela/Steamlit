@@ -6,7 +6,6 @@ import tempfile
 
 # Set page config
 st.set_page_config(page_title="Budget Tracker", page_icon="💰", layout="centered")
-
 # ✅ Custom CSS
 st.markdown("""
 <style>
@@ -67,30 +66,24 @@ header {visibility: hidden;}
     font-weight: bold;
 }
 
-/* ✅ Income number_input ko green box jaisa look */
-div[data-baseweb="input"] > input {
-    background: #10B981 !important;
+/* Income input box green */
+div[data-baseweb="input"] input {
+    background-color: #ECFDF5 !important;
+    color: #065F46 !important;
+    font-weight: bold;
+    border-radius: 8px;
+    border: 1px solid #10B981 !important;
+}
+
+/* Submit button gray */
+.stForm button {
+    background-color: #9CA3AF !important;
     color: white !important;
     font-weight: bold;
     border-radius: 8px;
-    text-align: center;
-}
-
-/* ✅ Submit button grey */
-.stForm button {
-    background: #9CA3AF !important; /* grey */
-    color: white !important;
-    border: none !important;
-    border-radius: 8px !important;
-    padding: 8px 16px !important;
-    font-weight: 600 !important;
-    width: 100% !important;
-    margin: 8px 0 !important;
-    font-size: 14px !important;
-    height: 40px !important;
 }
 .stForm button:hover {
-    background: #6B7280 !important; /* darker grey */
+    background-color: #6B7280 !important;
 }
 </style>
 """, unsafe_allow_html=True)
