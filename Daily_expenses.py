@@ -74,14 +74,40 @@ div[data-baseweb="input"] input {
     border-radius: 8px;
     border: 1px solid #10B981 !important;
 }
+.stNumberInput > div,
+.stTextInput > div,
+.stDateInput > div {
+    background-color: #F9FAFB !important; /* हल्का gray */
+    border: 1px solid #D1D5DB !important;
+    border-radius: 8px;
+    padding: 2px;
+}
+
+.stNumberInput > div > div,
+.stTextInput > div > div,
+.stDateInput > div > div {
+    background-color: #F9FAFB !important; /* अंदर का area */
+    border-radius: 8px;
+}
+
 .stNumberInput > div > div > input,
 .stTextInput > div > div > input,
 .stDateInput > div > div > input {
-    border: 1px solid #D1D5DB;
-    border-radius: 8px;
-    padding: 12px;
+    background-color: #F9FAFB !important; /* textbox area */
+    color: #111827 !important;
+    border: none !important;
     font-size: 16px;
+}
 
+/* NumberInput के + / - बटन */
+.stNumberInput button {
+    background-color: #F3F4F6 !important; /* बटन का हल्का gray */
+    color: #374151 !important;            /* टेक्स्ट का dark gray */
+    border: none !important;
+}
+.stNumberInput button:hover {
+    background-color: #E5E7EB !important; /* hover effect */
+}
 /* Submit button gray */
 .stForm button {
     background-color: #9CA3AF !important;
