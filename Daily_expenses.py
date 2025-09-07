@@ -237,11 +237,6 @@ with col2:
             st.session_state.income_saved = True
             st.success("✅ Income saved!")
 
-# Income change warning
-if not st.session_state.income_saved and new_income != st.session_state.income:
-    st.checkbox("You have entered a new income amount. {Click} Save to confirm, 
-        or use "Clear All Data" to reset everything including your saved income")
-
 # Display boxes
 st.markdown(f"""
 <div class="income-expense-container">
