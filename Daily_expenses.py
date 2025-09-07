@@ -68,6 +68,16 @@ header {visibility: hidden;}
     font-weight: bold;
 }
 
+.info-box {
+    background: #FEF3C7;
+    border: 1px solid #F59E0B;
+    color: #92400E;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 10px 0;
+    font-size: 14px;
+}
+
 .section-header {
     color: #4B5563;
     font-size: 16px;
@@ -186,6 +196,9 @@ if 'expenses_df' not in st.session_state:
 if 'income' not in st.session_state:
     st.session_state.income = load_income()
 
+if 'income_saved' not in st.session_state:
+    st.session_state.income_saved = False
+
 if 'last_refresh' not in st.session_state or st.session_state.get('force_refresh', False):
     st.session_state.expenses_df = load_expenses()
     st.session_state.income = load_income()
@@ -217,7 +230,17 @@ with col2:
     if st.button("💾 Save", key="save_income"):
         st.session_state.income = new_income
         if save_income(new_income):
+            st.session_state.income_saved = True
             st.success("✅ Income saved!")
+
+# Income change warning
+if not st.session_state.income_saved and new_income != st.session_state.income:
+    st.markdown("""
+    <div class="info-box">
+        💡 <strong>Note:</strong> You have entered a new income amount. Click "Save" to confirm, 
+        or use "Clear All Data" to reset everything including your saved income.
+    </div>
+    """, unsafe_allow_html=True)
 
 # Display boxes
 st.markdown(f"""
@@ -328,75 +351,58 @@ if not st.session_state.expenses_df.empty:
                 mime="text/csv",
                 use_container_width=True
             )
-        for idx, row in st.session_state.expenses_df.iterrows():
-            txt_data += f"Date: {row['Date']}\n"
-            txt_data += f"Item: {row['Item']}\n"
-            txt_data += f"Price: ₹{row['Price']:.2f}\n"
-            txt_data += f"Note: {row['Note']}\n"
-            txt_data += "-" * 30 + "\n"
 
-        # Convert to string directly
-        txt_data += st.session_state.expenses_df.to_string(index=False)
-    
-        txt_data += f"\n\nSummary:\n"
-        txt_data += f"Total Items: {len(st.session_state.expenses_df)}\n"
-        txt_data += f"Total Amount: ₹{st.session_state.expenses_df['Price'].sum():.2f}\n"
-       
-
-        st.download_button(
-            label="📥 Download TXT",
-            data=txt_data,
-            file_name="daily_expenses.txt",
-            mime="text/plain",
-            use_container_width=True
-        )
-
-    st.markdown("### ✏️ Edit Expenses")
-
-    editable_df = st.session_state.expenses_df.copy()
-
-    # Make sure Date is datetime.date
-    editable_df["Date"] = pd.to_datetime(editable_df["Date"], errors="coerce").dt.date
-
-    # Make sure Price is numeric
-    editable_df["Price"] = pd.to_numeric(editable_df["Price"], errors="coerce").fillna(0.0)
-
-    # Convert Item and Note to string
-    editable_df["Item"] = editable_df["Item"].astype(str)
-    editable_df["Note"] = editable_df["Note"].astype(str)
-
-    # Editable Table
-    st.session_state.expenses_df = st.data_editor(
-        editable_df,
-        use_container_width=True,
-        hide_index=True,
-        num_rows="dynamic",
-        column_config={
-            "Date": st.column_config.DateColumn("📅 Date"),
-            "Item": st.column_config.TextColumn("📝 Item (Editable)", help="Click to edit"),
-            "Price": st.column_config.NumberColumn("💰 Price", format="₹%.2f"),
-            "Note": st.column_config.TextColumn("📋 Note")
-        }
-    )
-
-    # Save edits automatically
-    if save_to_csv(st.session_state.expenses_df):
-        st.success("✅ Changes saved!")
-
-    # Clear all data option
-    st.markdown("---")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🗑️ Clear All Data", use_container_width=True):
-            st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
+        elif download_format == "Excel":
             try:
-                if os.path.exists(PERSISTENT_FILE):
-                    os.remove(PERSISTENT_FILE)
-                st.success("✅ All data cleared!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error clearing data: {e}")
+                # Create Excel file in memory
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    st.session_state.expenses_df.to_excel(writer, index=False, sheet_name='Expenses')
+                excel_data = output.getvalue()
 
-else:
-    st.info("📝 No expenses found. Add your first expense above!")
-    st.caption(f"💾 Data will be stored")
+                st.download_button(
+                    label="📥 Download Excel",
+                    data=excel_data,
+                    file_name=f"expenses_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            except ImportError:
+                st.error("Excel export requires additional libraries. Use CSV instead.")
+                csv_data = st.session_state.expenses_df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download CSV (Alternative)",
+                    data=csv_data,
+                    file_name=f"expenses_{datetime.now().strftime('%Y_%m_%d')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+
+        elif download_format == "TXT":
+            # Create text format - FIXED VERSION
+            txt_data = "Personal Budget Tracker - Expenses Report\n"
+            txt_data += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            txt_data += "=" * 50 + "\n\n"
+            
+            # Safe iteration through DataFrame
+            if not st.session_state.expenses_df.empty:
+                df_copy = st.session_state.expenses_df.copy()
+                for i in range(len(df_copy)):
+                    row_data = df_copy.iloc[i]
+                    txt_data += f"Date: {row_data['Date']}\n"
+                    txt_data += f"Item: {row_data['Item']}\n"
+                    txt_data += f"Price: ₹{row_data['Price']:.2f}\n"
+                    txt_data += f"Note: {row_data['Note']}\n"
+                    txt_data += "-" * 30 + "\n"
+
+            txt_data += f"\nSummary:\n"
+            txt_data += f"Total Items: {len(st.session_state.expenses_df)}\n"
+            txt_data += f"Total Amount: ₹{st.session_state.expenses_df['Price'].sum():.2f}\n"
+
+            st.download_button(
+                label="📥 Download TXT",
+                data=txt_data,
+                file_name=f"expenses_{datetime.now().strftime('%Y_%m_%d')}.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
