@@ -273,15 +273,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Debug info - Remove in production
-if st.checkbox("🔍 Debug Info"):
-    st.write("**Debug Information:**")
-    st.write(f"DataFrame Shape: {st.session_state.expenses_df.shape}")
-    st.write(f"DataFrame Empty: {st.session_state.expenses_df.empty}")
-    st.write(f"Columns: {list(st.session_state.expenses_df.columns)}")
-    if not st.session_state.expenses_df.empty:
-        st.write("**Sample Data:**")
-        st.dataframe(st.session_state.expenses_df.head())
 
 # ----------------------------
 # ✅ Add Expense Form
