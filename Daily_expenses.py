@@ -258,14 +258,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Display data location info
-st.markdown(f"""
-<div class="info-box">
-    📁 Data saved to: {DATA_DIR}<br>
-    📊 Total records: {len(st.session_state.expenses_df)} expenses
-</div>
-""", unsafe_allow_html=True)
-
 # ----------------------------
 # ✅ Income Input and Total Display - Fixed calculation
 # ----------------------------
