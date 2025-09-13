@@ -409,8 +409,12 @@ if not st.session_state.sheet_connected:
     # Connection button
     if st.button("🔗 Connect Sheet", type="primary", use_container_width=True):
         if sheet_url:
+            # Show what we're trying to extract
             sheet_id = extract_sheet_id(sheet_url)
+            
             if sheet_id:
+                st.info(f"🔍 Connecting to sheet ID: ...{sheet_id[-8:]}")
+                
                 with st.spinner("🔄 Connecting..."):
                     df = read_google_sheet_csv(sheet_id)
                     
@@ -431,7 +435,17 @@ if not st.session_state.sheet_connected:
                         
                         st.rerun()
             else:
-                st.error("❌ Invalid Google Sheet URL!")
+                st.error("❌ Cannot extract Sheet ID from URL!")
+                st.markdown("""
+                **Please make sure your URL looks like one of these:**
+                - `https://docs.google.com/spreadsheets/d/1ABC...XYZ/edit#gid=0`
+                - `https://docs.google.com/spreadsheets/d/1ABC...XYZ/edit`
+                
+                **How to get correct URL:**
+                1. Open your Google Sheet in browser
+                2. Copy the entire URL from address bar
+                3. Paste it above
+                """)
         else:
             st.error("⚠️ Please enter your Google Sheet URL!")
 
