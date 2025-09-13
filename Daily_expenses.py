@@ -417,8 +417,18 @@ if not st.session_state.sheet_connected:
             
             if sheet_id:
                 st.write(f"✅ **Extracted Sheet ID:** `{sheet_id}`")
-                st.write(f"🔗 **Testing CSV URL:** `https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv`")
                 
+                # Test different access methods
+                st.write("🧪 **Testing Sheet Access:**")
+                test_results = test_sheet_access(sheet_id)
+                
+                for result in test_results:
+                    if result['status_code'] == 200:
+                        st.success(f"✅ {result['test']}: Status {result['status_code']} - Length: {result['response_length']}")
+                    else:
+                        st.error(f"❌ {result['test']}: Status {result['status_code']} - {result['starts_with'][:50]}...")
+                
+                # Try to connect with the working method
                 with st.spinner("🔄 Connecting..."):
                     df = read_google_sheet_csv(sheet_id)
                     
@@ -439,7 +449,21 @@ if not st.session_state.sheet_connected:
                         
                         st.rerun()
                     else:
-                        st.error("❌ Failed to read sheet data")
+                        st.error("❌ All connection methods failed!")
+                        st.markdown("""
+                        **Try these steps:**
+                        1. Open your Google Sheet
+                        2. Click **Share** button (top right)
+                        3. Click **"Anyone with the link"**  
+                        4. Select **"Viewer"**
+                        5. Click **Done**
+                        6. Try connecting again
+                        
+                        **Alternative:** Try publishing the sheet:
+                        1. Go to **File → Share → Publish to web**
+                        2. Select **"Entire Document"** and **"CSV"**
+                        3. Click **Publish**
+                        """)
             else:
                 st.error("❌ Cannot extract Sheet ID from URL!")
                 st.write("🔍 **Debug Info:**")
