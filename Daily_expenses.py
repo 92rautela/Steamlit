@@ -685,11 +685,10 @@ if not st.session_state.expenses_df.empty:
             st.rerun()
     
     with col2:
-        if st.button("🔌 Disconnect Sheet", use_container_width=True):
-            st.session_state.sheet_id = ""
-            st.session_state.sheet_connected = False
-            st.session_state.last_sync = None
-            st.success("✅ Disconnected from Google Sheet!")
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.session_state.expenses_df = load_expenses()
+            st.session_state.income = load_income()
+            st.success("✅ Data refreshed!")
             st.rerun()
     
     with col3:
