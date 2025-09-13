@@ -409,11 +409,15 @@ if not st.session_state.sheet_connected:
     # Connection button
     if st.button("🔗 Connect Sheet", type="primary", use_container_width=True):
         if sheet_url:
+            # Debug: Show URL being processed
+            st.write(f"🔍 **Processing URL:** `{sheet_url}`")
+            
             # Show what we're trying to extract
             sheet_id = extract_sheet_id(sheet_url)
             
             if sheet_id:
-                st.info(f"🔍 Connecting to sheet ID: ...{sheet_id[-8:]}")
+                st.write(f"✅ **Extracted Sheet ID:** `{sheet_id}`")
+                st.write(f"🔗 **Testing CSV URL:** `https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv`")
                 
                 with st.spinner("🔄 Connecting..."):
                     df = read_google_sheet_csv(sheet_id)
@@ -434,18 +438,13 @@ if not st.session_state.sheet_connected:
                             st.success(f"✅ Connected! Found {len(expenses_df)} expenses, Income: ₹{income:,.0f}")
                         
                         st.rerun()
+                    else:
+                        st.error("❌ Failed to read sheet data")
             else:
                 st.error("❌ Cannot extract Sheet ID from URL!")
-                st.markdown("""
-                **Please make sure your URL looks like one of these:**
-                - `https://docs.google.com/spreadsheets/d/1ABC...XYZ/edit#gid=0`
-                - `https://docs.google.com/spreadsheets/d/1ABC...XYZ/edit`
-                
-                **How to get correct URL:**
-                1. Open your Google Sheet in browser
-                2. Copy the entire URL from address bar
-                3. Paste it above
-                """)
+                st.write("🔍 **Debug Info:**")
+                st.code(f"URL: {sheet_url}")
+                st.write("**Expected format:** `https://docs.google.com/spreadsheets/d/SHEET_ID/edit...`")
         else:
             st.error("⚠️ Please enter your Google Sheet URL!")
 
