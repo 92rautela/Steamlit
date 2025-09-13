@@ -668,26 +668,6 @@ with st.form("expense_form", clear_on_submit=True):
             save_to_csv(st.session_state.expenses_df)
             st.info("🔄 Changes saved locally!")
 
-    # Action buttons
-    st.markdown("---")
-    col1, col2, col3 = st.columns(3)
-
-    with col3:
-        if st.button("🗑️ Clear All", use_container_width=True):
-            st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
-            st.session_state.income = 0.0
-            st.session_state.income_saved = False
-
-            try:
-                if os.path.exists(PERSISTENT_FILE):
-                    os.remove(PERSISTENT_FILE)
-                if os.path.exists(INCOME_FILE):
-                    os.remove(INCOME_FILE)
-                st.success("✅ All data cleared!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error clearing data: {e}")
-
 # Footer
 st.markdown("---")
 st.markdown("""
@@ -698,3 +678,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
