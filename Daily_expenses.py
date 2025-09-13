@@ -1,4 +1,12 @@
-import streamlit as st
+def parse_sheet_data(df):
+    """Parse data from Google Sheet - auto-detect structure"""
+    try:
+        expenses_data = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
+        income = 0.0
+        
+        # If dataframe is empty or None, return empty structure
+        if df is None or df.empty:
+            st.info("📝import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 import requests
@@ -556,20 +564,30 @@ if st.session_state.sheet_connected:
                 new_row = pd.DataFrame([new_expense])
                 st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_row], ignore_index=True)
                 
+                # Show Google Sheet update instructions
+                row_number = len(st.session_state.expenses_df) + 5  # Starting from row 6 (5+1)
+                
+                st.markdown("""
+                <div class="success-message">
+                    ✅ <strong>Expense Added to Local Dashboard!</strong><br>
+                    📊 Dashboard updated instantly<br>
+                    📝 Now update your Google Sheet
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.info(f"""
+                📝 **Add this to your Google Sheet (Row {row_number}):**
+                
+                **Cell A{row_number}:** {expense_date}  
+                **Cell B{row_number}:** {expense_item.strip().title()}  
+                **Cell C{row_number}:** {expense_price}  
+                **Cell D{row_number}:** {expense_note.strip() if expense_note.strip() else "N/A"}  
+                
+                *Copy and paste these values in the respective cells*
+                """)
+                
                 # Simulate Google Sheets update (in production, use Google Sheets API)
-                if update_google_sheet_via_form(st.session_state.sheet_id, new_expense):
-                    st.markdown("""
-                    <div class="success-message">
-                        ✅ <strong>Expense Added Successfully!</strong><br>
-                        📊 Data saved to Google Sheet<br>
-                        🔄 Dashboard updated instantly
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.info("💡 **Note:** For full live integration, you'll need to set up Google Sheets API. Currently showing local preview.")
-                    st.rerun()
-                else:
-                    st.error("❌ Failed to add expense to Google Sheet!")
+                st.success("💡 **Tip:** For automatic updates, you'll need Google Sheets API integration")
             else:
                 st.error("⚠️ Please enter item name and valid price!")
     
