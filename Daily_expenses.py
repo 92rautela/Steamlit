@@ -167,6 +167,7 @@ header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
+
 # ----------------------------
 # ✅ Google Sheets Functions
 # ----------------------------
@@ -183,12 +184,13 @@ def extract_sheet_id(sheet_url):
     except:
         return None
 
+
 def read_google_sheet_csv(sheet_id, gid=0):
     """Read Google Sheet as CSV (public sheets only)"""
     try:
         csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
         response = requests.get(csv_url, timeout=10)
-        
+
         if response.status_code == 200:
             # Create DataFrame from CSV
             df = pd.read_csv(io.StringIO(response.text))
@@ -200,15 +202,16 @@ def read_google_sheet_csv(sheet_id, gid=0):
         st.error(f"Error reading sheet: {e}")
         return None
 
+
 def parse_sheet_data(df):
     """Parse data from Google Sheet - auto-detect structure"""
     try:
         expenses_data = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
         income = 0.0
-        
+
         if df.empty:
             return expenses_data, income
-        
+
         # Look for income in first few rows
         for idx in range(min(5, len(df))):
             for col in df.columns:
@@ -225,7 +228,7 @@ def parse_sheet_data(df):
                     except:
                         pass
                     break
-        
+
         # Look for expenses data - find header row
         header_row = -1
         for idx in range(len(df)):
@@ -233,16 +236,16 @@ def parse_sheet_data(df):
             if any(word in row_text for word in ['date', 'item', 'expense', 'price', 'amount']):
                 header_row = idx
                 break
-        
+
         if header_row >= 0:
             # Try to map columns
             expenses_df = df.iloc[header_row + 1:].copy()
-            
+
             # Reset columns based on content
             if len(df.columns) >= 3:
                 col_mapping = {}
                 headers = [str(df.iloc[header_row][col]).lower().strip() for col in df.columns]
-                
+
                 for i, header in enumerate(headers):
                     if any(word in header for word in ['date', 'day', 'when']):
                         col_mapping['Date'] = df.columns[i]
@@ -252,7 +255,7 @@ def parse_sheet_data(df):
                         col_mapping['Price'] = df.columns[i]
                     elif any(word in header for word in ['note', 'remark', 'detail', 'comment']):
                         col_mapping['Note'] = df.columns[i]
-                
+
                 # Rename columns if mapping found
                 if len(col_mapping) >= 3:
                     expenses_df = expenses_df.rename(columns=col_mapping)
@@ -263,46 +266,49 @@ def parse_sheet_data(df):
                     for i, new_col in enumerate(new_cols):
                         if i < len(old_cols):
                             expenses_df = expenses_df.rename(columns={old_cols[i]: new_col})
-                
+
                 # Clean data
                 required_cols = ['Date', 'Item', 'Price']
                 if all(col in expenses_df.columns for col in required_cols):
                     # Remove empty rows
                     expenses_df = expenses_df.dropna(subset=['Item', 'Price'])
-                    
+
                     # Convert data types
                     if not expenses_df.empty:
                         expenses_df['Date'] = pd.to_datetime(expenses_df['Date'], errors='coerce').dt.date
-                        expenses_df['Price'] = pd.to_numeric(expenses_df['Price'].astype(str).str.replace(',', '').str.replace('₹', ''), errors='coerce').fillna(0)
+                        expenses_df['Price'] = pd.to_numeric(
+                            expenses_df['Price'].astype(str).str.replace(',', '').str.replace('₹', ''),
+                            errors='coerce').fillna(0)
                         expenses_df['Item'] = expenses_df['Item'].astype(str)
-                        
+
                         if 'Note' not in expenses_df.columns:
                             expenses_df['Note'] = 'N/A'
                         else:
                             expenses_df['Note'] = expenses_df['Note'].fillna('N/A').astype(str)
-                    
+
                     return expenses_df, income
-        
+
         return expenses_data, income
-        
+
     except Exception as e:
         st.error(f"Error parsing sheet data: {e}")
         return pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note']), 0.0
+
 
 def create_gsheet_format_data(expenses_df, income):
     """Create formatted data ready for Google Sheets"""
     try:
         formatted_data = []
-        
+
         # Add title and income
         formatted_data.append(['Budget Tracker Data', '', '', ''])
         formatted_data.append(['', '', '', ''])
         formatted_data.append(['Income', income, '', ''])
         formatted_data.append(['', '', '', ''])
-        
+
         # Add expenses header
         formatted_data.append(['Date', 'Item', 'Price', 'Note'])
-        
+
         # Add expenses data
         for _, row in expenses_df.iterrows():
             formatted_data.append([
@@ -311,18 +317,20 @@ def create_gsheet_format_data(expenses_df, income):
                 float(row['Price']),
                 str(row['Note'])
             ])
-        
+
         return formatted_data
-        
+
     except Exception as e:
         st.error(f"Error formatting data: {e}")
         return []
+
 
 # ----------------------------
 # ✅ Local File Functions
 # ----------------------------
 PERSISTENT_FILE = os.path.join(tempfile.gettempdir(), "budget_tracker_expenses.csv")
 INCOME_FILE = os.path.join(tempfile.gettempdir(), "budget_tracker_income.csv")
+
 
 def load_expenses():
     if os.path.exists(PERSISTENT_FILE):
@@ -335,6 +343,7 @@ def load_expenses():
             st.error(f"Error loading data: {e}")
     return pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
 
+
 def load_income():
     if os.path.exists(INCOME_FILE):
         try:
@@ -343,6 +352,7 @@ def load_income():
         except Exception as e:
             st.error(f"Error loading income: {e}")
     return 0.0
+
 
 def save_to_csv(df):
     try:
@@ -353,6 +363,7 @@ def save_to_csv(df):
         st.error(f"Error saving: {e}")
         return False
 
+
 def save_income(income):
     try:
         os.makedirs(os.path.dirname(INCOME_FILE), exist_ok=True)
@@ -362,6 +373,7 @@ def save_income(income):
     except Exception as e:
         st.error(f"Error saving income: {e}")
         return False
+
 
 # ----------------------------
 # ✅ Session State Initialization
@@ -404,11 +416,11 @@ if not st.session_state.sheet_connected:
         📊 Connect Your Google Sheet
     </div>
     """, unsafe_allow_html=True)
-    
+
     with st.expander("📋 Setup Instructions", expanded=True):
         st.markdown("""
         ### Quick Setup:
-        
+
         **Step 1: Prepare Google Sheet**
         1. Create a new Google Sheet
         2. Make it **public** (Share > Anyone with link > Viewer)
@@ -416,25 +428,25 @@ if not st.session_state.sheet_connected:
            - Row 1: Income, [your income amount]
            - Row 4: Date, Item, Price, Note
            - Row 5+: Your expense data
-        
+
         **Step 2: Get Sheet Link**
         1. Copy the sheet URL from browser
         2. Paste it below
-        
+
         **Step 3: Connect**
         - App will auto-detect your data structure
         - Import existing expenses and income
         """)
-    
+
     # Sheet URL Input
     sheet_url = st.text_input(
         "🔗 Paste your Google Sheet URL:",
         placeholder="https://docs.google.com/spreadsheets/d/your-sheet-id/edit...",
         value=st.session_state.sheet_id if st.session_state.sheet_id else ""
     )
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         if st.button("🔗 Connect Sheet", key="connect_sheet", use_container_width=True):
             if sheet_url:
@@ -442,20 +454,20 @@ if not st.session_state.sheet_connected:
                 if sheet_id:
                     with st.spinner("Connecting to Google Sheet..."):
                         df = read_google_sheet_csv(sheet_id)
-                        
+
                         if df is not None:
                             expenses_df, income = parse_sheet_data(df)
-                            
+
                             st.session_state.expenses_df = expenses_df
                             st.session_state.income = income
                             st.session_state.sheet_id = sheet_id
                             st.session_state.sheet_connected = True
                             st.session_state.last_sync = datetime.now()
-                            
+
                             # Save to local files
                             save_to_csv(expenses_df)
                             save_income(income)
-                            
+
                             st.success("✅ Sheet connected successfully!")
                             st.rerun()
                         else:
@@ -464,7 +476,7 @@ if not st.session_state.sheet_connected:
                     st.error("❌ Invalid Google Sheet URL!")
             else:
                 st.error("⚠️ Please enter Google Sheet URL!")
-    
+
     with col2:
         if st.button("⏭️ Skip for Now", key="skip_sheet", use_container_width=True):
             st.session_state.sheet_connected = True
@@ -481,9 +493,9 @@ else:
             <small>Last sync: {st.session_state.last_sync.strftime('%H:%M:%S') if st.session_state.last_sync else 'Never'}</small>
         </div>
         """, unsafe_allow_html=True)
-        
+
         col1, col2 = st.columns(2)
-        
+
         with col1:
             if st.button("🔄 Sync from Sheet", key="sync_sheet", use_container_width=True):
                 with st.spinner("Syncing from Google Sheet..."):
@@ -493,16 +505,16 @@ else:
                         st.session_state.expenses_df = expenses_df
                         st.session_state.income = income
                         st.session_state.last_sync = datetime.now()
-                        
+
                         # Save to local files
                         save_to_csv(expenses_df)
                         save_income(income)
-                        
+
                         st.success("✅ Data synced from Google Sheet!")
                         st.rerun()
                     else:
                         st.error("❌ Failed to sync from sheet!")
-        
+
         with col2:
             if st.button("📤 Show Export Data", key="export_data", use_container_width=True):
                 formatted_data = create_gsheet_format_data(st.session_state.expenses_df, st.session_state.income)
@@ -511,7 +523,7 @@ else:
                     export_df = pd.DataFrame(formatted_data)
                     st.markdown("**Copy this data to your Google Sheet:**")
                     st.dataframe(export_df, use_container_width=True, hide_index=True)
-                    
+
                     # Also provide as CSV
                     csv_data = export_df.to_csv(index=False, header=False)
                     st.download_button(
@@ -607,7 +619,7 @@ with st.form("expense_form", clear_on_submit=True):
                 'Note': [expense_note.strip() if expense_note.strip() else "N/A"]
             })
             st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_expense], ignore_index=True)
-            
+
             if save_to_csv(st.session_state.expenses_df):
                 st.success("✅ Expense added and saved!")
                 st.info("💡 Don't forget to update your Google Sheet with new data!")
@@ -620,24 +632,6 @@ with st.form("expense_form", clear_on_submit=True):
 # ----------------------------
 # ✅ Display & Editable Expenses
 # ----------------------------
-if not st.session_state.expenses_df.empty:
-    st.markdown("---")
-    st.markdown("### 📋 Recent Expenses")
-
-    # Statistics
-    if len(st.session_state.expenses_df) > 0:
-        avg_expense = st.session_state.expenses_df['Price'].mean()
-        max_expense = st.session_state.expenses_df['Price'].max()
-        total_items = len(st.session_state.expenses_df)
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("📊 Items", total_items)
-        with col2:
-            st.metric("💰 Average", f"₹{avg_expense:.0f}")
-        with col3:
-            st.metric("🔝 Highest", f"₹{max_expense:.0f}")
-
     st.markdown("### ✏️ Edit Expenses")
 
     # Editable data
@@ -668,7 +662,8 @@ if not st.session_state.expenses_df.empty:
         )
 
         # Check if data was modified
-        if not updated_df.equals(st.session_state.expenses_df.sort_values('Date', ascending=False).reset_index(drop=True)):
+        if not updated_df.equals(
+                st.session_state.expenses_df.sort_values('Date', ascending=False).reset_index(drop=True)):
             st.session_state.expenses_df = updated_df.reset_index(drop=True)
             save_to_csv(st.session_state.expenses_df)
             st.info("🔄 Changes saved locally!")
@@ -676,27 +671,13 @@ if not st.session_state.expenses_df.empty:
     # Action buttons
     st.markdown("---")
     col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if st.button("🔄 Refresh", use_container_width=True):
-            st.session_state.expenses_df = load_expenses()
-            st.session_state.income = load_income()
-            st.success("✅ Data refreshed!")
-            st.rerun()
-    
-    with col2:
-        if st.button("🔄 Refresh", use_container_width=True):
-            st.session_state.expenses_df = load_expenses()
-            st.session_state.income = load_income()
-            st.success("✅ Data refreshed!")
-            st.rerun()
-    
+
     with col3:
         if st.button("🗑️ Clear All", use_container_width=True):
             st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
             st.session_state.income = 0.0
             st.session_state.income_saved = False
-            
+
             try:
                 if os.path.exists(PERSISTENT_FILE):
                     os.remove(PERSISTENT_FILE)
@@ -706,12 +687,6 @@ if not st.session_state.expenses_df.empty:
                 st.rerun()
             except Exception as e:
                 st.error(f"Error clearing data: {e}")
-
-else:
-    st.info("📝 No expenses found. Add your first expense above!")
-    if st.session_state.sheet_connected and not st.session_state.sheet_id:
-        st.caption("💡 Connect a Google Sheet to import existing data")
-    st.caption("💾 Data will be stored automatically")
 
 # Footer
 st.markdown("---")
