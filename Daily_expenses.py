@@ -1,186 +1,408 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
-import os
-import tempfile
+import requests
+import json
 import io
+from urllib.parse import urlparse, parse_qs
 
-# Set page config
-st.set_page_config(page_title="Budget Tracker", page_icon="💰", layout="centered")
+# Set page config for mobile
+st.set_page_config(
+    page_title="Mobile Budget Tracker", 
+    page_icon="💰", 
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
 
-# ✅ Custom CSS
+# ✅ Mobile-First CSS
 st.markdown("""
 <style>
+/* Hide Streamlit elements */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
+.stDeployButton {visibility: hidden;}
 
+/* Mobile container */
 .main-container {
-    max-width: 400px;
-    margin: 20px auto;
-    padding: 0;
+    max-width: 100%;
+    padding: 10px;
+    margin: 0;
 }
 
+/* Header */
 .header-box {
-    background: linear-gradient(135deg, #8B5CF6, #A855F7);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 15px;
-    border-radius: 15px;
+    padding: 20px 15px;
+    border-radius: 20px;
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     font-weight: bold;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
-.file-section {
-    background: #F0F9FF;
-    border: 2px dashed #0EA5E9;
-    padding: 15px;
-    border-radius: 10px;
-    margin: 15px 0;
-    text-align: center;
-}
-
-.income-expense-container {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.income-box {
-    background: linear-gradient(135deg, #10B981, #059669);
-    color: white;
-    padding: 15px;
-    border-radius: 10px;
-    text-align: center;
-    flex: 1;
-    font-weight: bold;
-}
-
-.total-amount-box {
-    background: linear-gradient(135deg, #EF4444, #DC2626);
-    color: white;
-    padding: 15px;
-    border-radius: 10px;
-    text-align: center;
-    flex: 1;
-    font-weight: bold;
-}
-
-.box-title {
-    font-size: 12px;
-    opacity: 0.9;
+.header-title {
+    font-size: 24px;
     margin-bottom: 5px;
 }
 
-.box-value {
-    font-size: 18px;
-    font-weight: bold;
-}
-
-.info-box {
-    background: #FEF3C7;
-    border: 1px solid #F59E0B;
-    color: #92400E;
-    padding: 10px;
-    border-radius: 8px;
-    margin: 10px 0;
+.header-subtitle {
     font-size: 14px;
+    opacity: 0.9;
 }
 
-.section-header {
-    color: #4B5563;
-    font-size: 16px;
-    font-weight: 600;
-    margin: 20px 0 10px 0;
-    display: flex;
-    align-items: center;
+/* Google Sheets Setup */
+.gsheet-setup {
+    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+    border: 2px dashed #4CAF50;
+    padding: 20px;
+    border-radius: 15px;
+    margin: 15px 0;
+    text-align: center;
 }
 
-.stNumberInput > div > div > input,
-.stTextInput > div > div > input,
-.stDateInput > div > div > input {
-    border: 1px solid #D1D5DB;
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 16px;
-}
-
-.stButton > button {
-    background: linear-gradient(135deg, #8B5CF6, #A855F7);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 16px;
-    font-weight: 600;
-    width: 100%;
-    margin: 8px 0;
-    font-size: 14px;
-    height: 40px;
-}
-
-.stButton > button:hover {
-    background: linear-gradient(135deg, #7C3AED, #9333EA);
-    transform: translateY(-1px);
-}
-
-.download-btn {
-    background: linear-gradient(135deg, #059669, #10B981) !important;
-}
-
-.stats-container {
-    background: #F9FAFB;
+.connected-sheet {
+    background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%);
+    border: 2px solid #4CAF50;
     padding: 15px;
-    border-radius: 10px;
+    border-radius: 15px;
+    margin: 15px 0;
+    text-align: center;
+}
+
+/* Income/Expense cards */
+.money-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
     margin: 15px 0;
 }
 
-.stat-box {
+.income-card {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+    padding: 20px 15px;
+    border-radius: 15px;
     text-align: center;
-    margin: 5px 0;
+    font-weight: bold;
+    box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
+}
+
+.expense-card {
+    background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+    color: white;
+    padding: 20px 15px;
+    border-radius: 15px;
+    text-align: center;
+    font-weight: bold;
+    box-shadow: 0 4px 15px rgba(252, 70, 107, 0.3);
+}
+
+.card-title {
+    font-size: 12px;
+    opacity: 0.9;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.card-value {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* Balance display */
+.balance-display {
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    padding: 20px;
+    border-radius: 15px;
+    text-align: center;
+    margin: 15px 0;
+    font-weight: bold;
+    font-size: 18px;
+    box-shadow: 0 4px 15px rgba(252, 182, 159, 0.3);
+}
+
+/* Form styling */
+.expense-form {
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    padding: 20px;
+    border-radius: 20px;
+    margin: 20px 0;
+    box-shadow: 0 4px 15px rgba(255, 236, 210, 0.4);
+}
+
+.form-title {
+    color: #333;
+    font-size: 20px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+/* Mobile input styling */
+.stNumberInput > div > div > input,
+.stTextInput > div > div > input,
+.stDateInput > div > div > input,
+.stTextArea > div > div > textarea {
+    border: 2px solid #ddd;
+    border-radius: 12px;
+    padding: 15px !important;
+    font-size: 16px !important;
+    background: white;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stNumberInput > div > div > input:focus,
+.stTextInput > div > div > input:focus,
+.stDateInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+/* Mobile buttons */
+.stButton > button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 15px;
+    padding: 15px 25px;
+    font-weight: 600;
+    width: 100%;
+    margin: 10px 0;
+    font-size: 16px;
+    height: 55px;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    transition: all 0.3s ease;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+/* Action buttons different colors */
+.download-btn button {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+}
+
+.danger-btn button {
+    background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%) !important;
+}
+
+/* Statistics cards */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.stat-card {
+    background: white;
+    padding: 15px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    border: 2px solid #f0f0f0;
 }
 
 .stat-value {
-    font-size: 24px;
+    font-size: 18px;
     font-weight: bold;
-    color: #8B5CF6;
+    color: #667eea;
+    margin-bottom: 5px;
 }
 
 .stat-label {
-    font-size: 14px;
-    color: #6B7280;
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
+
+/* Recent expenses */
+.expense-item {
+    background: white;
+    border-radius: 12px;
+    padding: 15px;
+    margin: 10px 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    border-left: 4px solid #667eea;
+}
+
+.expense-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.expense-item-name {
+    font-weight: bold;
+    color: #333;
+    font-size: 16px;
+}
+
+.expense-price {
+    font-weight: bold;
+    color: #fc466b;
+    font-size: 16px;
+}
+
+.expense-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #666;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 5px;
+    }
+    
+    .money-cards {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .card-value {
+        font-size: 18px;
+    }
+    
+    .header-title {
+        font-size: 20px;
+    }
+}
+
+/* Success/Error messages */
+.success-msg {
+    background: linear-gradient(135deg, #d4e5d4 0%, #a8d5a8 100%);
+    color: #2d5a2d;
+    padding: 15px;
+    border-radius: 10px;
+    margin: 10px 0;
+    border-left: 4px solid #4CAF50;
+}
+
+.error-msg {
+    background: linear-gradient(135deg, #f8d7da 0%, #f1aeb5 100%);
+    color: #721c24;
+    padding: 15px;
+    border-radius: 10px;
+    margin: 10px 0;
+    border-left: 4px solid #dc3545;
+}
+
+/* Loading spinner */
+.loading {
+    text-align: center;
+    padding: 20px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# ✅ File Management Functions
+# ✅ Google Sheets Functions (Simplified for Mobile)
 # ----------------------------
 
-def create_default_budget_file():
-    """Create a default budget file structure"""
-    default_data = {
-        'expenses': pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note']),
-        'income': 0.0,
-        'created_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-    return default_data
-
-def save_budget_to_file(expenses_df, income, filename=None):
-    """Save budget data to Excel file with multiple sheets"""
+def extract_sheet_id(sheet_url):
+    """Extract sheet ID from Google Sheets URL"""
     try:
-        if filename is None:
-            filename = f"budget_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        if '/d/' in sheet_url:
+            return sheet_url.split('/d/')[1].split('/')[0]
+        return sheet_url
+    except:
+        return None
+
+def read_google_sheet(sheet_id, range_name='Sheet1!A:Z'):
+    """Read data from Google Sheets using public access"""
+    try:
+        # For public sheets, we can use the CSV export URL
+        csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+        response = requests.get(csv_url, timeout=10)
         
-        # Create a BytesIO buffer
+        if response.status_code == 200:
+            # Read CSV data
+            df = pd.read_csv(io.StringIO(response.text))
+            return df
+        else:
+            st.error("Unable to read sheet. Make sure it's publicly accessible!")
+            return None
+    except Exception as e:
+        st.error(f"Error reading sheet: {e}")
+        return None
+
+def parse_budget_data(df):
+    """Parse budget data from Google Sheet"""
+    try:
+        expenses_data = []
+        income = 0.0
+        
+        # If sheet has our format
+        if not df.empty:
+            # Look for income in first few rows
+            for idx, row in df.head(5).iterrows():
+                if str(row.iloc[0]).lower().strip() in ['income', 'monthly income', 'salary']:
+                    try:
+                        income = float(row.iloc[1])
+                    except:
+                        income = 0.0
+                    break
+            
+            # Look for expenses starting after income row
+            expense_start_row = 0
+            for idx, row in df.iterrows():
+                if str(row.iloc[0]).lower().strip() in ['date', 'expense date', 'expenses']:
+                    expense_start_row = idx + 1
+                    break
+            
+            # Parse expenses
+            if expense_start_row > 0:
+                expenses_df = df.iloc[expense_start_row:].copy()
+                expenses_df.columns = ['Date', 'Item', 'Price', 'Note']
+                
+                # Clean and convert data
+                expenses_df = expenses_df.dropna(subset=['Date', 'Item', 'Price'])
+                expenses_df['Date'] = pd.to_datetime(expenses_df['Date'], errors='coerce').dt.date
+                expenses_df['Price'] = pd.to_numeric(expenses_df['Price'], errors='coerce').fillna(0)
+                expenses_df['Note'] = expenses_df['Note'].fillna('N/A')
+                
+                return expenses_df, income
+        
+        # If no structured data found, return empty
+        return pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note']), income
+        
+    except Exception as e:
+        st.error(f"Error parsing data: {e}")
+        return pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note']), 0.0
+
+# ----------------------------
+# ✅ Local Save Functions
+# ----------------------------
+
+def save_to_excel(expenses_df, income):
+    """Save data to Excel for local download"""
+    try:
         buffer = io.BytesIO()
         
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             # Save expenses
             expenses_df.to_excel(writer, sheet_name='Expenses', index=False)
             
-            # Save income and metadata
+            # Save metadata
             metadata_df = pd.DataFrame({
-                'Parameter': ['Income', 'Total_Expenses', 'Remaining_Balance', 'Last_Updated'],
+                'Parameter': ['Income', 'Total_Expenses', 'Balance', 'Last_Updated'],
                 'Value': [
                     income,
                     expenses_df['Price'].sum() if not expenses_df.empty else 0,
@@ -188,372 +410,375 @@ def save_budget_to_file(expenses_df, income, filename=None):
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 ]
             })
-            metadata_df.to_excel(writer, sheet_name='Settings', index=False)
+            metadata_df.to_excel(writer, sheet_name='Summary', index=False)
         
-        return buffer.getvalue(), filename
+        return buffer.getvalue()
+    except Exception as e:
+        st.error(f"Error creating Excel file: {e}")
+        return None
+
+def create_csv_for_gsheet(expenses_df, income):
+    """Create CSV format for easy copy to Google Sheets"""
+    try:
+        # Create a formatted sheet structure
+        output = []
+        output.append(['Mobile Budget Tracker Data'])
+        output.append([''])
+        output.append(['Income', income])
+        output.append([''])
+        output.append(['Date', 'Item', 'Price', 'Note'])
+        
+        # Add expenses
+        for _, row in expenses_df.iterrows():
+            output.append([
+                row['Date'].strftime('%Y-%m-%d') if pd.notnull(row['Date']) else '',
+                row['Item'],
+                row['Price'],
+                row['Note']
+            ])
+        
+        # Convert to CSV
+        csv_buffer = io.StringIO()
+        pd.DataFrame(output).to_csv(csv_buffer, index=False, header=False)
+        return csv_buffer.getvalue()
         
     except Exception as e:
-        st.error(f"Error saving file: {e}")
-        return None, None
-
-def load_budget_from_file(uploaded_file):
-    """Load budget data from uploaded Excel file"""
-    try:
-        # Read expenses sheet
-        expenses_df = pd.read_excel(uploaded_file, sheet_name='Expenses')
-        
-        # Convert Date column to proper format
-        if not expenses_df.empty and 'Date' in expenses_df.columns:
-            expenses_df['Date'] = pd.to_datetime(expenses_df['Date'], errors='coerce').dt.date
-        
-        # Read settings sheet
-        try:
-            settings_df = pd.read_excel(uploaded_file, sheet_name='Settings')
-            income = settings_df[settings_df['Parameter'] == 'Income']['Value'].iloc[0]
-        except:
-            income = 0.0
-            
-        return expenses_df, float(income)
-        
-    except Exception as e:
-        st.error(f"Error loading file: {e}")
-        return pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note']), 0.0
-
-def auto_save_data(expenses_df, income):
-    """Auto save data to temporary file for crash recovery"""
-    try:
-        temp_file = os.path.join(tempfile.gettempdir(), "budget_tracker_autosave.xlsx")
-        
-        with pd.ExcelWriter(temp_file, engine='openpyxl') as writer:
-            expenses_df.to_excel(writer, sheet_name='Expenses', index=False)
-            
-            metadata_df = pd.DataFrame({
-                'Parameter': ['Income', 'Last_Updated'],
-                'Value': [income, datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-            })
-            metadata_df.to_excel(writer, sheet_name='Settings', index=False)
-            
-        return True
-    except:
-        return False
-
-def load_autosaved_data():
-    """Load autosaved data for crash recovery"""
-    try:
-        temp_file = os.path.join(tempfile.gettempdir(), "budget_tracker_autosave.xlsx")
-        if os.path.exists(temp_file):
-            expenses_df = pd.read_excel(temp_file, sheet_name='Expenses')
-            
-            if not expenses_df.empty and 'Date' in expenses_df.columns:
-                expenses_df['Date'] = pd.to_datetime(expenses_df['Date'], errors='coerce').dt.date
-                
-            settings_df = pd.read_excel(temp_file, sheet_name='Settings')
-            income = settings_df[settings_df['Parameter'] == 'Income']['Value'].iloc[0]
-            
-            return expenses_df, float(income)
-    except:
-        pass
-    
-    return pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note']), 0.0
+        st.error(f"Error creating CSV: {e}")
+        return None
 
 # ----------------------------
 # ✅ Session State Initialization
 # ----------------------------
 if 'expenses_df' not in st.session_state:
-    # Try to load autosaved data first
-    st.session_state.expenses_df, st.session_state.income = load_autosaved_data()
+    st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
 
 if 'income' not in st.session_state:
     st.session_state.income = 0.0
 
-if 'file_loaded' not in st.session_state:
-    st.session_state.file_loaded = False
+if 'sheet_id' not in st.session_state:
+    st.session_state.sheet_id = ""
 
-if 'current_filename' not in st.session_state:
-    st.session_state.current_filename = None
+if 'sheet_connected' not in st.session_state:
+    st.session_state.sheet_connected = False
+
+if 'last_sync' not in st.session_state:
+    st.session_state.last_sync = None
 
 # ----------------------------
-# ✅ Header
+# ✅ Main App
 # ----------------------------
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
+
+# Header
 st.markdown("""
 <div class="header-box">
-    💰 Personal Budget Tracker 💰<br>
-    <small>Import your file or start fresh!</small>
+    <div class="header-title">💰 Mobile Budget Tracker</div>
+    <div class="header-subtitle">Google Sheets + Local Download</div>
 </div>
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# ✅ File Import/Export Section
+# ✅ Google Sheets Connection
 # ----------------------------
-st.markdown("""
-<div class="file-section">
-    📁 File Management
-</div>
-""", unsafe_allow_html=True)
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown("**📤 Import Budget File:**")
-    uploaded_file = st.file_uploader(
-        "Choose your budget file", 
-        type=['xlsx'], 
-        help="Upload your existing budget Excel file",
-        label_visibility="collapsed"
+if not st.session_state.sheet_connected:
+    st.markdown("""
+    <div class="gsheet-setup">
+        📊 Connect Your Google Sheet
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.expander("📋 Quick Setup Guide", expanded=True):
+        st.markdown("""
+        ### 📱 Mobile Setup (Easy Way):
+        
+        **Step 1: Create Google Sheet**
+        1. Open Google Sheets app on your phone
+        2. Create new sheet named "My Budget"
+        3. In cell A1 type: "Income"
+        4. In cell B1 type your monthly income (e.g., 50000)
+        5. In cell A3 type: "Date"
+        6. In cell B3 type: "Item" 
+        7. In cell C3 type: "Price"
+        8. In cell D3 type: "Note"
+        
+        **Step 2: Make Sheet Public**
+        1. Tap Share button (top right)
+        2. Tap "Change to anyone with the link"
+        3. Set to "Viewer" 
+        4. Copy the link
+        
+        **Step 3: Paste Link Below**
+        """)
+    
+    # Sheet URL input
+    sheet_url = st.text_input(
+        "🔗 Paste your Google Sheet link here:",
+        placeholder="https://docs.google.com/spreadsheets/d/your-sheet-id/edit...",
+        help="Make sure your sheet is public (anyone with link can view)"
     )
     
-    if uploaded_file is not None and not st.session_state.file_loaded:
-        expenses_df, income = load_budget_from_file(uploaded_file)
-        st.session_state.expenses_df = expenses_df
-        st.session_state.income = income
-        st.session_state.file_loaded = True
-        st.session_state.current_filename = uploaded_file.name
-        st.success(f"✅ File '{uploaded_file.name}' loaded successfully!")
-        st.rerun()
-
-with col2:
-    st.markdown("**📥 Download Budget File:**")
-    
-    # Auto-generate filename
-    download_filename = f"my_budget_{datetime.now().strftime('%Y%m%d')}.xlsx"
-    
-    if not st.session_state.expenses_df.empty or st.session_state.income > 0:
-        file_data, filename = save_budget_to_file(
-            st.session_state.expenses_df, 
-            st.session_state.income, 
-            download_filename
-        )
-        
-        if file_data:
-            st.download_button(
-                label="💾 Download Budget",
-                data=file_data,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-    else:
-        st.info("Add some data first!")
-
-# File status
-if st.session_state.current_filename:
-    st.info(f"📁 Current file: **{st.session_state.current_filename}**")
-
-# Reset file loaded flag when upload is cleared
-if uploaded_file is None and st.session_state.file_loaded:
-    st.session_state.file_loaded = False
-
-# ----------------------------
-# ✅ Calculate totals
-# ----------------------------
-total_expenses = 0.0
-if not st.session_state.expenses_df.empty and 'Price' in st.session_state.expenses_df.columns:
-    price_values = pd.to_numeric(st.session_state.expenses_df['Price'], errors='coerce').fillna(0)
-    total_expenses = price_values.sum()
-
-# ----------------------------
-# ✅ Income Input and Display
-# ----------------------------
-st.markdown("**💚 Set Your Income:**")
-col1, col2 = st.columns([2, 1])
-with col1:
-    new_income = st.number_input("Monthly Income (₹)", value=st.session_state.income, min_value=0.0, step=100.0)
-with col2:
-    if st.button("💾 Save", key="save_income"):
-        st.session_state.income = new_income
-        auto_save_data(st.session_state.expenses_df, st.session_state.income)
-        st.success("✅ Income saved!")
-
-# Display boxes
-st.markdown(f"""
-<div class="income-expense-container">
-    <div class="income-box">
-        <div class="box-title">💚 INCOME</div>
-        <div class="box-value">₹{st.session_state.income:,.2f}</div>
-    </div>
-    <div class="total-amount-box">
-        <div class="box-title">❤️ TOTAL EXPENSES</div>
-        <div class="box-value">₹{total_expenses:,.2f}</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# Remaining balance
-remaining = st.session_state.income - total_expenses
-balance_color = "green" if remaining >= 0 else "red"
-balance_icon = "✅" if remaining >= 0 else "⚠️"
-
-st.markdown(f"""
-<div style="text-align: center; padding: 10px; background-color: #F3F4F6; border-radius: 8px; margin: 10px 0;">
-    <span style="color: {balance_color}; font-weight: bold; font-size: 16px;">
-        {balance_icon} Remaining Balance: ₹{remaining:,.2f}
-    </span>
-</div>
-""", unsafe_allow_html=True)
-
-# ----------------------------
-# ✅ Add Expense Form
-# ----------------------------
-st.markdown("""
-<div class="section-header">
-    💸 Add New Expense
-</div>
-""", unsafe_allow_html=True)
-
-with st.form("expense_form", clear_on_submit=True):
     col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**📅 Date:**")
-        expense_date = st.date_input("", value=date.today(), label_visibility="collapsed")
-
-        st.markdown("**📝 Item Name:**")
-        expense_item = st.text_input("", placeholder="e.g., Milk, Groceries", label_visibility="collapsed")
-
-    with col2:
-        st.markdown("**💰 Price (₹):**")
-        expense_price = st.number_input("", min_value=0.0, step=1.0, format="%.2f", label_visibility="collapsed")
-
-        st.markdown("**📋 Note:** *(optional)*")
-        expense_note = st.text_input("", placeholder="Additional details", label_visibility="collapsed")
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        submitted = st.form_submit_button("➕ Add Expense", use_container_width=True)
-
-    if submitted:
-        if expense_item.strip() and expense_price > 0:
-            new_expense = pd.DataFrame({
-                'Date': [expense_date],
-                'Item': [expense_item.strip().title()],
-                'Price': [float(expense_price)],
-                'Note': [expense_note.strip() if expense_note.strip() else "N/A"]
-            })
-            st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_expense], ignore_index=True)
-            
-            # Auto-save after adding expense
-            if auto_save_data(st.session_state.expenses_df, st.session_state.income):
-                st.success("✅ Expense added and auto-saved!")
-            else:
-                st.warning("⚠️ Expense added but auto-save failed!")
-                
-            st.rerun()
-        else:
-            st.error("⚠️ Please enter item name and valid price!")
-
-# ----------------------------
-# ✅ Display & Edit Expenses
-# ----------------------------
-if not st.session_state.expenses_df.empty:
-    st.markdown("---")
-    st.markdown("### 📋 Your Expenses")
-
-    # Statistics
-    if len(st.session_state.expenses_df) > 0:
-        avg_expense = st.session_state.expenses_df['Price'].mean()
-        max_expense = st.session_state.expenses_df['Price'].max()
-        total_items = len(st.session_state.expenses_df)
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("📊 Total Items", total_items)
-        with col2:
-            st.metric("💰 Average", f"₹{avg_expense:.2f}")
-        with col3:
-            st.metric("🔝 Highest", f"₹{max_expense:.2f}")
-
-    st.markdown("### ✏️ Edit Expenses")
-
-    # Editable data
-    editable_df = st.session_state.expenses_df.copy()
-
-    if not editable_df.empty:
-        # Ensure proper data types
-        editable_df["Date"] = pd.to_datetime(editable_df["Date"], errors="coerce").dt.date
-        editable_df["Price"] = pd.to_numeric(editable_df["Price"], errors="coerce").fillna(0.0)
-        editable_df["Item"] = editable_df["Item"].astype(str)
-        editable_df["Note"] = editable_df["Note"].astype(str)
-
-        # Sort by date (newest first)
-        editable_df = editable_df.sort_values('Date', ascending=False)
-
-        # Editable Table
-        updated_df = st.data_editor(
-            editable_df,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="dynamic",
-            column_config={
-                "Date": st.column_config.DateColumn("📅 Date"),
-                "Item": st.column_config.TextColumn("📝 Item", help="Click to edit"),
-                "Price": st.column_config.NumberColumn("💰 Price", format="₹%.2f"),
-                "Note": st.column_config.TextColumn("📋 Note")
-            }
-        )
-
-        # Check if data was modified
-        if not updated_df.equals(st.session_state.expenses_df.sort_values('Date', ascending=False).reset_index(drop=True)):
-            st.session_state.expenses_df = updated_df.reset_index(drop=True)
-            auto_save_data(st.session_state.expenses_df, st.session_state.income)
-            st.info("🔄 Changes auto-saved!")
-
-    # Action buttons
-    st.markdown("---")
-    col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("🔄 Refresh Data", use_container_width=True):
-            # Try to reload autosaved data
-            expenses_df, income = load_autosaved_data()
-            st.session_state.expenses_df = expenses_df
-            st.session_state.income = income
-            st.success("✅ Data refreshed!")
-            st.rerun()
+        if st.button("🚀 Connect Sheet", use_container_width=True):
+            if sheet_url:
+                sheet_id = extract_sheet_id(sheet_url)
+                if sheet_id:
+                    with st.spinner("Connecting to your sheet..."):
+                        df = read_google_sheet(sheet_id)
+                        
+                        if df is not None:
+                            expenses_df, income = parse_budget_data(df)
+                            st.session_state.expenses_df = expenses_df
+                            st.session_state.income = income
+                            st.session_state.sheet_id = sheet_id
+                            st.session_state.sheet_connected = True
+                            st.session_state.last_sync = datetime.now()
+                            
+                            st.success("✅ Sheet connected successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Could not connect to sheet!")
+                else:
+                    st.error("❌ Invalid sheet URL!")
+            else:
+                st.error("❌ Please enter sheet URL!")
     
     with col2:
-        if st.button("💾 Manual Save", use_container_width=True):
-            if auto_save_data(st.session_state.expenses_df, st.session_state.income):
-                st.success("✅ Data saved manually!")
-            else:
-                st.error("❌ Save failed!")
-    
-    with col3:
-        if st.button("🗑️ Clear All", use_container_width=True):
-            st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
-            st.session_state.income = 0.0
-            st.session_state.current_filename = None
-            
-            # Remove autosave file
-            try:
-                temp_file = os.path.join(tempfile.gettempdir(), "budget_tracker_autosave.xlsx")
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-            except:
-                pass
-                
-            st.success("✅ All data cleared!")
+        if st.button("📱 Skip & Start Fresh", use_container_width=True):
+            st.session_state.sheet_connected = True
+            st.info("✅ Started without Google Sheet connection!")
             st.rerun()
 
 else:
-    st.markdown("---")
-    st.info("📝 No expenses found. Add your first expense above or import a budget file!")
+    # Connected - show main app
+    if st.session_state.sheet_id:
+        st.markdown(f"""
+        <div class="connected-sheet">
+            ✅ Connected to Google Sheet<br>
+            <small>Last sync: {st.session_state.last_sync.strftime('%H:%M') if st.session_state.last_sync else 'Never'}</small>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Show example of creating new budget
+    # ----------------------------
+    # ✅ Income & Balance Display
+    # ----------------------------
+    
+    # Income input (compact for mobile)
+    st.markdown("**💚 Monthly Income:**")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        new_income = st.number_input("", value=st.session_state.income, min_value=0.0, step=500.0, label_visibility="collapsed")
+    with col2:
+        if st.button("💾", help="Save Income"):
+            st.session_state.income = new_income
+            st.success("Saved!")
+    
+    # Calculate totals
+    total_expenses = 0.0
+    if not st.session_state.expenses_df.empty and 'Price' in st.session_state.expenses_df.columns:
+        total_expenses = pd.to_numeric(st.session_state.expenses_df['Price'], errors='coerce').fillna(0).sum()
+    
+    remaining = st.session_state.income - total_expenses
+    
+    # Money cards
+    st.markdown(f"""
+    <div class="money-cards">
+        <div class="income-card">
+            <div class="card-title">💚 Income</div>
+            <div class="card-value">₹{st.session_state.income:,.0f}</div>
+        </div>
+        <div class="expense-card">
+            <div class="card-title">💸 Expenses</div>
+            <div class="card-value">₹{total_expenses:,.0f}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Balance
+    balance_color = "#11998e" if remaining >= 0 else "#fc466b"
+    balance_icon = "✅" if remaining >= 0 else "⚠️"
+    
+    st.markdown(f"""
+    <div class="balance-display" style="border-left: 5px solid {balance_color};">
+        {balance_icon} Balance: <span style="color: {balance_color};">₹{remaining:,.0f}</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # ----------------------------
+    # ✅ Add Expense Form (Mobile Optimized)
+    # ----------------------------
     st.markdown("""
-    ### 🚀 Getting Started:
-    1. **📤 Import existing file**: Upload your Excel budget file
-    2. **➕ Add expenses**: Use the form above to add new expenses  
-    3. **💾 Download**: Save your budget as Excel file anytime
-    4. **🔄 Auto-recovery**: Data is auto-saved to prevent loss
-    """)
+    <div class="expense-form">
+        <div class="form-title">💸 Add New Expense</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.form("mobile_expense_form", clear_on_submit=True):
+        # Single column layout for mobile
+        expense_date = st.date_input("📅 Date", value=date.today())
+        
+        expense_item = st.text_input("🛍️ What did you buy?", placeholder="e.g., Groceries, Petrol, Coffee")
+        
+        expense_price = st.number_input("💰 How much? (₹)", min_value=0.0, step=10.0, format="%.0f")
+        
+        expense_note = st.text_input("📝 Quick Note (optional)", placeholder="Any extra details...")
+        
+        submitted = st.form_submit_button("➕ Add Expense", use_container_width=True)
+        
+        if submitted:
+            if expense_item.strip() and expense_price > 0:
+                new_expense = pd.DataFrame({
+                    'Date': [expense_date],
+                    'Item': [expense_item.strip().title()],
+                    'Price': [float(expense_price)],
+                    'Note': [expense_note.strip() if expense_note.strip() else "N/A"]
+                })
+                
+                st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_expense], ignore_index=True)
+                
+                st.markdown("""
+                <div class="success-msg">
+                    ✅ Expense added successfully!
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.rerun()
+            else:
+                st.markdown("""
+                <div class="error-msg">
+                    ❌ Please enter item name and price!
+                </div>
+                """, unsafe_allow_html=True)
+    
+    # ----------------------------
+    # ✅ Statistics & Recent Expenses
+    # ----------------------------
+    if not st.session_state.expenses_df.empty:
+        # Statistics
+        total_items = len(st.session_state.expenses_df)
+        avg_expense = st.session_state.expenses_df['Price'].mean()
+        max_expense = st.session_state.expenses_df['Price'].max()
+        
+        st.markdown(f"""
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{total_items}</div>
+                <div class="stat-label">Total Items</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">₹{avg_expense:.0f}</div>
+                <div class="stat-label">Average</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">₹{max_expense:.0f}</div>
+                <div class="stat-label">Highest</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Recent expenses
+        st.markdown("### 📋 Recent Expenses")
+        
+        # Show last 5 expenses
+        recent_expenses = st.session_state.expenses_df.tail(5).sort_values('Date', ascending=False)
+        
+        for idx, expense in recent_expenses.iterrows():
+            date_str = expense['Date'].strftime('%b %d') if pd.notnull(expense['Date']) else 'No Date'
+            
+            st.markdown(f"""
+            <div class="expense-item">
+                <div class="expense-header">
+                    <div class="expense-item-name">{expense['Item']}</div>
+                    <div class="expense-price">₹{expense['Price']:,.0f}</div>
+                </div>
+                <div class="expense-meta">
+                    <div>📅 {date_str}</div>
+                    <div>📝 {expense['Note']}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        if len(st.session_state.expenses_df) > 5:
+            st.info(f"Showing recent 5 expenses. Total: {len(st.session_state.expenses_df)} expenses")
+    
+    # ----------------------------
+    # ✅ Action Buttons
+    # ----------------------------
+    st.markdown("---")
+    
+    # Sync button (if connected)
+    if st.session_state.sheet_id:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔄 Sync from Sheet", use_container_width=True):
+                with st.spinner("Syncing..."):
+                    df = read_google_sheet(st.session_state.sheet_id)
+                    if df is not None:
+                        expenses_df, income = parse_budget_data(df)
+                        st.session_state.expenses_df = expenses_df
+                        st.session_state.income = income
+                        st.session_state.last_sync = datetime.now()
+                        st.success("✅ Data synced!")
+                        st.rerun()
+        
+        with col2:
+            if st.button("📤 Copy to Sheet", use_container_width=True):
+                csv_data = create_csv_for_gsheet(st.session_state.expenses_df, st.session_state.income)
+                if csv_data:
+                    st.text_area("📋 Copy this data to your Google Sheet:", csv_data, height=100)
+    
+    # Download buttons
+    st.markdown("### 📱 Download Your Data")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if not st.session_state.expenses_df.empty or st.session_state.income > 0:
+            excel_data = save_to_excel(st.session_state.expenses_df, st.session_state.income)
+            if excel_data:
+                st.download_button(
+                    label="📥 Download Excel",
+                    data=excel_data,
+                    file_name=f"budget_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+    
+    with col2:
+        if not st.session_state.expenses_df.empty or st.session_state.income > 0:
+            csv_data = create_csv_for_gsheet(st.session_state.expenses_df, st.session_state.income)
+            if csv_data:
+                st.download_button(
+                    label="📥 Download CSV",
+                    data=csv_data,
+                    file_name=f"budget_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+    
+    # Clear data button
+    if st.button("🗑️ Clear All Data", use_container_width=True):
+        st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
+        st.session_state.income = 0.0
+        st.success("✅ All data cleared!")
+        st.rerun()
+    
+    # Disconnect sheet
+    if st.session_state.sheet_id:
+        if st.button("🔌 Disconnect Sheet", use_container_width=True):
+            st.session_state.sheet_id = ""
+            st.session_state.sheet_connected = False
+            st.success("✅ Disconnected from Google Sheet!")
+            st.rerun()
 
-# Footer info
+# Footer
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center; color: #6B7280; font-size: 12px;">
-    💡 <strong>Tips:</strong> Your data auto-saves after every change • Download your file regularly as backup • 
-    Upload the same file to continue where you left off
+<div style="text-align: center; color: #666; font-size: 12px; padding: 10px;">
+    📱 <strong>Mobile Budget Tracker</strong><br>
+    Google Sheets sync • Local downloads • Always accessible
 </div>
 """, unsafe_allow_html=True)
 
