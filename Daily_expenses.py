@@ -31,6 +31,15 @@ header {visibility: hidden;}
     font-weight: bold;
 }
 
+.file-section {
+    background: #F0F9FF;
+    border: 2px dashed #0EA5E9;
+    padding: 15px;
+    border-radius: 10px;
+    margin: 15px 0;
+    text-align: center;
+}
+
 .income-expense-container {
     display: flex;
     gap: 10px;
@@ -114,6 +123,10 @@ header {visibility: hidden;}
     transform: translateY(-1px);
 }
 
+.download-btn {
+    background: linear-gradient(135deg, #059669, #10B981) !important;
+}
+
 .stats-container {
     background: #F9FAFB;
     padding: 15px;
@@ -140,113 +153,124 @@ header {visibility: hidden;}
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# ✅ File Path - Using user's home directory for better persistence
-# ----------------------------
-# Create a more persistent directory in user's home folder
-try:
-    HOME_DIR = os.path.expanduser("~")
-    DATA_DIR = os.path.join(HOME_DIR, "BudgetTracker")
-    os.makedirs(DATA_DIR, exist_ok=True)
-    PERSISTENT_FILE = os.path.join(DATA_DIR, "budget_tracker_expenses.csv")
-    INCOME_FILE = os.path.join(DATA_DIR, "budget_tracker_income.csv")
-except:
-    # Fallback to temp directory if home directory is not accessible
-    DATA_DIR = tempfile.gettempdir()
-    PERSISTENT_FILE = os.path.join(DATA_DIR, "budget_tracker_expenses.csv")
-    INCOME_FILE = os.path.join(DATA_DIR, "budget_tracker_income.csv")
-
-# ----------------------------
-# ✅ Load and Save Functions - Improved error handling
+# ✅ File Management Functions
 # ----------------------------
 
-def load_expenses():
-    try:
-        if os.path.exists(PERSISTENT_FILE) and os.path.getsize(PERSISTENT_FILE) > 0:
-            df = pd.read_csv(PERSISTENT_FILE)
-            if not df.empty and 'Date' in df.columns:
-                df['Date'] = pd.to_datetime(df['Date'], errors='coerce').dt.date
-                df['Price'] = pd.to_numeric(df['Price'], errors='coerce').fillna(0.0)
-                df['Item'] = df['Item'].astype(str)
-                df['Note'] = df['Note'].astype(str).fillna("N/A")
-            return df
-    except Exception as e:
-        st.warning(f"⚠️ Error loading expenses: {e}. Starting with empty data.")
-    
-    return pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
+def create_default_budget_file():
+    """Create a default budget file structure"""
+    default_data = {
+        'expenses': pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note']),
+        'income': 0.0,
+        'created_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    return default_data
 
-def load_income():
+def save_budget_to_file(expenses_df, income, filename=None):
+    """Save budget data to Excel file with multiple sheets"""
     try:
-        if os.path.exists(INCOME_FILE) and os.path.getsize(INCOME_FILE) > 0:
-            df = pd.read_csv(INCOME_FILE)
-            if not df.empty and 'Income' in df.columns:
-                return float(df['Income'].iloc[0])
-    except Exception as e:
-        st.warning(f"⚠️ Error loading income: {e}. Starting with 0.")
-    
-    return 0.0
-
-def save_to_csv(df):
-    try:
-        if df is not None and not df.empty:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(PERSISTENT_FILE), exist_ok=True)
+        if filename is None:
+            filename = f"budget_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        # Create a BytesIO buffer
+        buffer = io.BytesIO()
+        
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            # Save expenses
+            expenses_df.to_excel(writer, sheet_name='Expenses', index=False)
             
-            # Create a backup before saving
-            if os.path.exists(PERSISTENT_FILE):
-                backup_file = PERSISTENT_FILE + ".backup"
-                try:
-                    import shutil
-                    shutil.copy2(PERSISTENT_FILE, backup_file)
-                except:
-                    pass
-            
-            # Save the data
-            df_to_save = df.copy()
-            df_to_save['Date'] = pd.to_datetime(df_to_save['Date']).dt.strftime('%Y-%m-%d')
-            df_to_save.to_csv(PERSISTENT_FILE, index=False)
-            return True
+            # Save income and metadata
+            metadata_df = pd.DataFrame({
+                'Parameter': ['Income', 'Total_Expenses', 'Remaining_Balance', 'Last_Updated'],
+                'Value': [
+                    income,
+                    expenses_df['Price'].sum() if not expenses_df.empty else 0,
+                    income - (expenses_df['Price'].sum() if not expenses_df.empty else 0),
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                ]
+            })
+            metadata_df.to_excel(writer, sheet_name='Settings', index=False)
+        
+        return buffer.getvalue(), filename
+        
     except Exception as e:
-        st.error(f"❌ Error saving expenses: {e}")
-        # Try to restore from backup if available
-        backup_file = PERSISTENT_FILE + ".backup"
-        if os.path.exists(backup_file):
-            try:
-                import shutil
-                shutil.copy2(backup_file, PERSISTENT_FILE)
-                st.info("🔄 Restored from backup")
-            except:
-                pass
-        return False
-    
-    return False
+        st.error(f"Error saving file: {e}")
+        return None, None
 
-def save_income(income):
+def load_budget_from_file(uploaded_file):
+    """Load budget data from uploaded Excel file"""
     try:
-        os.makedirs(os.path.dirname(INCOME_FILE), exist_ok=True)
-        income_df = pd.DataFrame({'Income': [float(income)]})
-        income_df.to_csv(INCOME_FILE, index=False)
+        # Read expenses sheet
+        expenses_df = pd.read_excel(uploaded_file, sheet_name='Expenses')
+        
+        # Convert Date column to proper format
+        if not expenses_df.empty and 'Date' in expenses_df.columns:
+            expenses_df['Date'] = pd.to_datetime(expenses_df['Date'], errors='coerce').dt.date
+        
+        # Read settings sheet
+        try:
+            settings_df = pd.read_excel(uploaded_file, sheet_name='Settings')
+            income = settings_df[settings_df['Parameter'] == 'Income']['Value'].iloc[0]
+        except:
+            income = 0.0
+            
+        return expenses_df, float(income)
+        
+    except Exception as e:
+        st.error(f"Error loading file: {e}")
+        return pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note']), 0.0
+
+def auto_save_data(expenses_df, income):
+    """Auto save data to temporary file for crash recovery"""
+    try:
+        temp_file = os.path.join(tempfile.gettempdir(), "budget_tracker_autosave.xlsx")
+        
+        with pd.ExcelWriter(temp_file, engine='openpyxl') as writer:
+            expenses_df.to_excel(writer, sheet_name='Expenses', index=False)
+            
+            metadata_df = pd.DataFrame({
+                'Parameter': ['Income', 'Last_Updated'],
+                'Value': [income, datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+            })
+            metadata_df.to_excel(writer, sheet_name='Settings', index=False)
+            
         return True
-    except Exception as e:
-        st.error(f"❌ Error saving income: {e}")
+    except:
         return False
 
+def load_autosaved_data():
+    """Load autosaved data for crash recovery"""
+    try:
+        temp_file = os.path.join(tempfile.gettempdir(), "budget_tracker_autosave.xlsx")
+        if os.path.exists(temp_file):
+            expenses_df = pd.read_excel(temp_file, sheet_name='Expenses')
+            
+            if not expenses_df.empty and 'Date' in expenses_df.columns:
+                expenses_df['Date'] = pd.to_datetime(expenses_df['Date'], errors='coerce').dt.date
+                
+            settings_df = pd.read_excel(temp_file, sheet_name='Settings')
+            income = settings_df[settings_df['Parameter'] == 'Income']['Value'].iloc[0]
+            
+            return expenses_df, float(income)
+    except:
+        pass
+    
+    return pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note']), 0.0
+
 # ----------------------------
-# ✅ Initialize Session State - Improved initialization
+# ✅ Session State Initialization
 # ----------------------------
+if 'expenses_df' not in st.session_state:
+    # Try to load autosaved data first
+    st.session_state.expenses_df, st.session_state.income = load_autosaved_data()
 
-# Force data refresh every time app starts to prevent stale data
-def initialize_data():
-    st.session_state.expenses_df = load_expenses()
-    st.session_state.income = load_income()
-    st.session_state.data_loaded = True
+if 'income' not in st.session_state:
+    st.session_state.income = 0.0
 
-# Initialize only once or when forced
-if 'data_loaded' not in st.session_state or not st.session_state.get('data_loaded', False):
-    initialize_data()
+if 'file_loaded' not in st.session_state:
+    st.session_state.file_loaded = False
 
-# Set other session state variables
-if 'income_saved' not in st.session_state:
-    st.session_state.income_saved = False
+if 'current_filename' not in st.session_state:
+    st.session_state.current_filename = None
 
 # ----------------------------
 # ✅ Header
@@ -254,44 +278,92 @@ if 'income_saved' not in st.session_state:
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
 st.markdown("""
 <div class="header-box">
-    💰 Personal Budget Tracker 💰 
+    💰 Personal Budget Tracker 💰<br>
+    <small>Import your file or start fresh!</small>
 </div>
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# ✅ Income Input and Total Display - Fixed calculation
+# ✅ File Import/Export Section
 # ----------------------------
+st.markdown("""
+<div class="file-section">
+    📁 File Management
+</div>
+""", unsafe_allow_html=True)
 
-# Calculate total expenses with better error handling
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("**📤 Import Budget File:**")
+    uploaded_file = st.file_uploader(
+        "Choose your budget file", 
+        type=['xlsx'], 
+        help="Upload your existing budget Excel file",
+        label_visibility="collapsed"
+    )
+    
+    if uploaded_file is not None and not st.session_state.file_loaded:
+        expenses_df, income = load_budget_from_file(uploaded_file)
+        st.session_state.expenses_df = expenses_df
+        st.session_state.income = income
+        st.session_state.file_loaded = True
+        st.session_state.current_filename = uploaded_file.name
+        st.success(f"✅ File '{uploaded_file.name}' loaded successfully!")
+        st.rerun()
+
+with col2:
+    st.markdown("**📥 Download Budget File:**")
+    
+    # Auto-generate filename
+    download_filename = f"my_budget_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    
+    if not st.session_state.expenses_df.empty or st.session_state.income > 0:
+        file_data, filename = save_budget_to_file(
+            st.session_state.expenses_df, 
+            st.session_state.income, 
+            download_filename
+        )
+        
+        if file_data:
+            st.download_button(
+                label="💾 Download Budget",
+                data=file_data,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+    else:
+        st.info("Add some data first!")
+
+# File status
+if st.session_state.current_filename:
+    st.info(f"📁 Current file: **{st.session_state.current_filename}**")
+
+# Reset file loaded flag when upload is cleared
+if uploaded_file is None and st.session_state.file_loaded:
+    st.session_state.file_loaded = False
+
+# ----------------------------
+# ✅ Calculate totals
+# ----------------------------
 total_expenses = 0.0
-if not st.session_state.expenses_df.empty:
-    try:
-        if 'Price' in st.session_state.expenses_df.columns:
-            price_values = pd.to_numeric(st.session_state.expenses_df['Price'], errors='coerce').fillna(0)
-            total_expenses = float(price_values.sum())
-    except Exception as e:
-        st.warning(f"⚠️ Error calculating expenses: {e}")
-        total_expenses = 0.0
+if not st.session_state.expenses_df.empty and 'Price' in st.session_state.expenses_df.columns:
+    price_values = pd.to_numeric(st.session_state.expenses_df['Price'], errors='coerce').fillna(0)
+    total_expenses = price_values.sum()
 
-# Income input section
+# ----------------------------
+# ✅ Income Input and Display
+# ----------------------------
 st.markdown("**💚 Set Your Income:**")
 col1, col2 = st.columns([2, 1])
 with col1:
-    new_income = st.number_input(
-        "Monthly Income (₹)", 
-        value=float(st.session_state.income), 
-        min_value=0.0, 
-        step=100.0,
-        key="income_input"
-    )
+    new_income = st.number_input("Monthly Income (₹)", value=st.session_state.income, min_value=0.0, step=100.0)
 with col2:
     if st.button("💾 Save", key="save_income"):
-        if save_income(new_income):
-            st.session_state.income = new_income
-            st.session_state.income_saved = True
-            st.success("✅ Income saved!")
-        else:
-            st.error("❌ Failed to save income!")
+        st.session_state.income = new_income
+        auto_save_data(st.session_state.expenses_df, st.session_state.income)
+        st.success("✅ Income saved!")
 
 # Display boxes
 st.markdown(f"""
@@ -308,7 +380,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # Remaining balance
-remaining = float(st.session_state.income) - total_expenses
+remaining = st.session_state.income - total_expenses
 balance_color = "green" if remaining >= 0 else "red"
 balance_icon = "✅" if remaining >= 0 else "⚠️"
 
@@ -321,7 +393,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# ✅ Add Expense Form - Improved handling
+# ✅ Add Expense Form
 # ----------------------------
 st.markdown("""
 <div class="section-header">
@@ -346,62 +418,66 @@ with st.form("expense_form", clear_on_submit=True):
         st.markdown("**📋 Note:** *(optional)*")
         expense_note = st.text_input("", placeholder="Additional details", label_visibility="collapsed")
 
-    # Show formatted item name if entered
-    if expense_item:
-        formatted_item = expense_item.strip().title()
-        st.write(f"Formatted: **{formatted_item}**")
-
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        submitted = st.form_submit_button("✅ Add Expense", use_container_width=True)
+        submitted = st.form_submit_button("➕ Add Expense", use_container_width=True)
 
     if submitted:
-        if expense_item and expense_item.strip() and expense_price > 0:
-            try:
-                new_expense = pd.DataFrame({
-                    'Date': [expense_date],
-                    'Item': [expense_item.strip().title()],
-                    'Price': [float(expense_price)],
-                    'Note': [expense_note.strip() if expense_note and expense_note.strip() else "N/A"]
-                })
+        if expense_item.strip() and expense_price > 0:
+            new_expense = pd.DataFrame({
+                'Date': [expense_date],
+                'Item': [expense_item.strip().title()],
+                'Price': [float(expense_price)],
+                'Note': [expense_note.strip() if expense_note.strip() else "N/A"]
+            })
+            st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_expense], ignore_index=True)
+            
+            # Auto-save after adding expense
+            if auto_save_data(st.session_state.expenses_df, st.session_state.income):
+                st.success("✅ Expense added and auto-saved!")
+            else:
+                st.warning("⚠️ Expense added but auto-save failed!")
                 
-                # Add to session state
-                st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_expense], ignore_index=True)
-                
-                # Save immediately
-                if save_to_csv(st.session_state.expenses_df):
-                    st.success("✅ Expense added and saved successfully!")
-                    # Force refresh to show updated data
-                    st.rerun()
-                else:
-                    st.error("❌ Failed to save expense to file!")
-            except Exception as e:
-                st.error(f"❌ Error adding expense: {e}")
+            st.rerun()
         else:
-            st.error("⚠️ Please enter a valid item name and price!")
+            st.error("⚠️ Please enter item name and valid price!")
 
 # ----------------------------
-# ✅ Display & Editable Expenses - Improved data handling
+# ✅ Display & Edit Expenses
 # ----------------------------
 if not st.session_state.expenses_df.empty:
     st.markdown("---")
     st.markdown("### 📋 Your Expenses")
 
-    try:
-        # Create editable copy with proper data types
-        editable_df = st.session_state.expenses_df.copy()
+    # Statistics
+    if len(st.session_state.expenses_df) > 0:
+        avg_expense = st.session_state.expenses_df['Price'].mean()
+        max_expense = st.session_state.expenses_df['Price'].max()
+        total_items = len(st.session_state.expenses_df)
         
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("📊 Total Items", total_items)
+        with col2:
+            st.metric("💰 Average", f"₹{avg_expense:.2f}")
+        with col3:
+            st.metric("🔝 Highest", f"₹{max_expense:.2f}")
+
+    st.markdown("### ✏️ Edit Expenses")
+
+    # Editable data
+    editable_df = st.session_state.expenses_df.copy()
+
+    if not editable_df.empty:
         # Ensure proper data types
         editable_df["Date"] = pd.to_datetime(editable_df["Date"], errors="coerce").dt.date
         editable_df["Price"] = pd.to_numeric(editable_df["Price"], errors="coerce").fillna(0.0)
         editable_df["Item"] = editable_df["Item"].astype(str)
-        editable_df["Note"] = editable_df["Note"].astype(str).fillna("N/A")
-        
+        editable_df["Note"] = editable_df["Note"].astype(str)
+
         # Sort by date (newest first)
         editable_df = editable_df.sort_values('Date', ascending=False)
 
-        st.markdown("### ✏️ Edit/Delete Expenses")
-        
         # Editable Table
         updated_df = st.data_editor(
             editable_df,
@@ -410,102 +486,75 @@ if not st.session_state.expenses_df.empty:
             num_rows="dynamic",
             column_config={
                 "Date": st.column_config.DateColumn("📅 Date"),
-                "Item": st.column_config.TextColumn("📝 Item", help="Click to edit", width="medium"),
-                "Price": st.column_config.NumberColumn("💰 Price", format="₹%.2f", min_value=0.0),
-                "Note": st.column_config.TextColumn("📋 Note", help="Optional note")
-            },
-            key="expense_editor"
+                "Item": st.column_config.TextColumn("📝 Item", help="Click to edit"),
+                "Price": st.column_config.NumberColumn("💰 Price", format="₹%.2f"),
+                "Note": st.column_config.TextColumn("📋 Note")
+            }
         )
 
-        # Save changes button
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("💾 Save Changes", use_container_width=True, key="save_changes"):
-                try:
-                    # Update session state
-                    st.session_state.expenses_df = updated_df.copy()
-                    
-                    # Save to file
-                    if save_to_csv(st.session_state.expenses_df):
-                        st.success("✅ Changes saved successfully!")
-                    else:
-                        st.error("❌ Failed to save changes!")
-                except Exception as e:
-                    st.error(f"❌ Error saving changes: {e}")
+        # Check if data was modified
+        if not updated_df.equals(st.session_state.expenses_df.sort_values('Date', ascending=False).reset_index(drop=True)):
+            st.session_state.expenses_df = updated_df.reset_index(drop=True)
+            auto_save_data(st.session_state.expenses_df, st.session_state.income)
+            st.info("🔄 Changes auto-saved!")
 
-    except Exception as e:
-        st.error(f"❌ Error displaying expenses: {e}")
-        st.info("🔄 Refreshing data...")
-        initialize_data()
-        st.rerun()
-
-    # Statistics
-    if len(st.session_state.expenses_df) > 0:
-        st.markdown("---")
-        st.markdown("### 📊 Quick Stats")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            avg_expense = total_expenses / len(st.session_state.expenses_df) if len(st.session_state.expenses_df) > 0 else 0
-            st.metric("Average Expense", f"₹{avg_expense:.2f}")
-        
-        with col2:
-            max_expense = st.session_state.expenses_df['Price'].max() if not st.session_state.expenses_df.empty else 0
-            st.metric("Highest Expense", f"₹{max_expense:.2f}")
-        
-        with col3:
-            expense_count = len(st.session_state.expenses_df)
-            st.metric("Total Entries", expense_count)
-
-else:
-    st.info("📝 No expenses found. Add your first expense above!")
-
-# ----------------------------
-# ✅ Data Management Section
-# ----------------------------
-st.markdown("---")
-st.markdown("### 🛠️ Data Management")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button("🔄 Refresh Data", use_container_width=True):
-        initialize_data()
-        st.success("✅ Data refreshed!")
-        st.rerun()
-
-with col2:
-    if st.button("📤 Export Data", use_container_width=True):
-        if not st.session_state.expenses_df.empty:
-            csv_data = st.session_state.expenses_df.to_csv(index=False)
-            st.download_button(
-                label="💾 Download CSV",
-                data=csv_data,
-                file_name=f"budget_expenses_{date.today()}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-        else:
-            st.warning("⚠️ No data to export!")
-
-# Clear all data option (with confirmation)
-if st.checkbox("🗑️ Enable Clear All Data (dangerous)"):
-    if st.button("🗑️ Clear All Data", use_container_width=True, type="secondary"):
-        try:
-            # Clear session state
+    # Action buttons
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("🔄 Refresh Data", use_container_width=True):
+            # Try to reload autosaved data
+            expenses_df, income = load_autosaved_data()
+            st.session_state.expenses_df = expenses_df
+            st.session_state.income = income
+            st.success("✅ Data refreshed!")
+            st.rerun()
+    
+    with col2:
+        if st.button("💾 Manual Save", use_container_width=True):
+            if auto_save_data(st.session_state.expenses_df, st.session_state.income):
+                st.success("✅ Data saved manually!")
+            else:
+                st.error("❌ Save failed!")
+    
+    with col3:
+        if st.button("🗑️ Clear All", use_container_width=True):
             st.session_state.expenses_df = pd.DataFrame(columns=['Date', 'Item', 'Price', 'Note'])
             st.session_state.income = 0.0
-            st.session_state.income_saved = False
+            st.session_state.current_filename = None
             
-            # Remove files
-            if os.path.exists(PERSISTENT_FILE):
-                os.remove(PERSISTENT_FILE)
-            if os.path.exists(INCOME_FILE):
-                os.remove(INCOME_FILE)
-            
+            # Remove autosave file
+            try:
+                temp_file = os.path.join(tempfile.gettempdir(), "budget_tracker_autosave.xlsx")
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except:
+                pass
+                
             st.success("✅ All data cleared!")
             st.rerun()
-        except Exception as e:
-            st.error(f"❌ Error clearing data: {e}")
+
+else:
+    st.markdown("---")
+    st.info("📝 No expenses found. Add your first expense above or import a budget file!")
+    
+    # Show example of creating new budget
+    st.markdown("""
+    ### 🚀 Getting Started:
+    1. **📤 Import existing file**: Upload your Excel budget file
+    2. **➕ Add expenses**: Use the form above to add new expenses  
+    3. **💾 Download**: Save your budget as Excel file anytime
+    4. **🔄 Auto-recovery**: Data is auto-saved to prevent loss
+    """)
+
+# Footer info
+st.markdown("---")
+st.markdown("""
+<div style="text-align: center; color: #6B7280; font-size: 12px;">
+    💡 <strong>Tips:</strong> Your data auto-saves after every change • Download your file regularly as backup • 
+    Upload the same file to continue where you left off
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
