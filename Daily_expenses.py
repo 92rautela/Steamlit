@@ -101,7 +101,7 @@ def add_expense_form(supabase):
     with col2:
         amount = st.number_input("💰 Amount", min_value=0.0, format="%.2f")
 
-    note = st.text_input("📝 Note (Optional)", placeholder="Add details...", max_chars=100)
+    note = st.text_input("📝 Note", placeholder="Add details...", max_chars=100)
 
     if st.button("💾 Save Expense", use_container_width=True):
         if item_name and amount > 0:
