@@ -141,9 +141,10 @@ def view_data(supabase):
             step=500.0,
             format="%.2f",
             help="Enter your monthly budget",
-            Enter your monthly budget="budget_input"
+            key="budget_input"
         )
-        st.session_state.monthly_budget = budget
+        
+        # Check if budget changed and show message
         if budget != st.session_state.monthly_budget:
             st.session_state.monthly_budget = budget
             st.success(f"✅ Monthly budget set to ₹{budget:,.2f}")
