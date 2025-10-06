@@ -140,8 +140,8 @@ def view_data(supabase):
             value=st.session_state.monthly_budget,
             step=500.0,
             format="%.2f",
-            help="Enter your monthly budget"
-            key="budget_input"
+            help="Enter your monthly budget",
+            Enter your monthly budget="budget_input"
         )
         st.session_state.monthly_budget = budget
         if budget != st.session_state.monthly_budget:
