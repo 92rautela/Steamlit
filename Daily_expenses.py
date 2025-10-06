@@ -31,7 +31,7 @@ def login_page():
             with st.form("login_form"):
                 url = st.text_input(
                     "Supabase URL",
-                    placeholder="https://your-project.supabase.co",
+                    placeholder="https://dtehsxigxzeguinhlvnb.supabase.co",
                     help="Your Supabase project URL"
                 )
                 key = st.text_input(
