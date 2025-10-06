@@ -15,6 +15,8 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'supabase_client' not in st.session_state:
     st.session_state.supabase_client = None
+if 'monthly_budget' not in st.session_state:
+    st.session_state.monthly_budget = 10000.0  # Default budget
 
 
 def login_page():
@@ -67,10 +69,21 @@ def login_page():
 def dashboard():
     """Main dashboard after login"""
     # Header
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         st.title("📒 Expense Tracker Dashboard")
     with col2:
+        # Monthly Budget Input
+        budget = st.number_input(
+            "💵 Monthly Budget",
+            min_value=0.0,
+            value=st.session_state.monthly_budget,
+            step=500.0,
+            format="%.2f",
+            help="Set your monthly budget"
+        )
+        st.session_state.monthly_budget = budget
+    with col3:
         if st.button("🚪 Logout"):
             st.session_state.logged_in = False
             st.session_state.supabase_client = None
@@ -136,17 +149,41 @@ def view_data(supabase):
         if response.data:
             df = pd.DataFrame(response.data)
 
-            # Display summary
-            col1, col2, col3, col4 = st.columns(4)
+            # Calculate current month expenses
+            current_month = datetime.now().strftime('%Y-%m')
+            monthly_expenses = df[df['Date'].str.startswith(current_month)]['Amount'].sum()
+            monthly_budget = st.session_state.monthly_budget
+            remaining_budget = monthly_budget - monthly_expenses
+            budget_percentage = (monthly_expenses / monthly_budget * 100) if monthly_budget > 0 else 0
+
+            # Display summary with budget info
+            col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
                 st.metric("Total Expenses", len(df))
             with col2:
                 st.metric("Total Amount", f"₹{df['Amount'].sum():,.2f}")
             with col3:
-                st.metric("Average Amount", f"₹{df['Amount'].mean():,.2f}")
+                st.metric("This Month", f"₹{monthly_expenses:,.2f}")
             with col4:
-                st.metric("This Month",
-                          f"₹{df[df['Date'].str.startswith(datetime.now().strftime('%Y-%m'))]['Amount'].sum():,.2f}")
+                st.metric("Monthly Budget", f"₹{monthly_budget:,.2f}")
+            with col5:
+                st.metric(
+                    "Remaining",
+                    f"₹{remaining_budget:,.2f}",
+                    delta=f"{-budget_percentage:.1f}%" if budget_percentage > 0 else "0%",
+                    delta_color="inverse"
+                )
+
+            # Budget Progress Bar
+            st.markdown("### 📊 Budget Status")
+            if budget_percentage >= 100:
+                st.error(f"⚠️ Budget Exceeded! You've spent {budget_percentage:.1f}% of your monthly budget")
+            elif budget_percentage >= 80:
+                st.warning(f"⚠️ Warning! You've spent {budget_percentage:.1f}% of your monthly budget")
+            else:
+                st.success(f"✅ You've spent {budget_percentage:.1f}% of your monthly budget")
+            
+            st.progress(min(budget_percentage / 100, 1.0))
 
             st.markdown("---")
 
