@@ -69,21 +69,10 @@ def login_page():
 def dashboard():
     """Main dashboard after login"""
     # Header
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2 = st.columns([3, 1])
     with col1:
         st.title("📒 Expense Tracker Dashboard")
     with col2:
-        # Monthly Budget Input
-        budget = st.number_input(
-            "💵 Monthly Budget",
-            min_value=0.0,
-            value=st.session_state.monthly_budget,
-            step=500.0,
-            format="%.2f",
-            help="Set your monthly budget"
-        )
-        st.session_state.monthly_budget = budget
-    with col3:
         if st.button("🚪 Logout"):
             st.session_state.logged_in = False
             st.session_state.supabase_client = None
@@ -142,6 +131,21 @@ def view_data(supabase):
     """Display all expenses"""
     st.header("📊 All Expenses")
 
+    # Monthly Budget Input at top of View Data page
+    col1, col2 = st.columns([2, 1])
+    with col2:
+        budget = st.number_input(
+            "💵 Set Monthly Budget",
+            min_value=0.0,
+            value=st.session_state.monthly_budget,
+            step=500.0,
+            format="%.2f",
+            help="Enter your monthly budget"
+        )
+        st.session_state.monthly_budget = budget
+
+    st.markdown("---")
+
     try:
         # Fetch data
         response = supabase.table("Tracker").select("*").order("Date", desc=True).execute()
@@ -161,7 +165,8 @@ def view_data(supabase):
             with col1:
                 st.metric("Total Expenses", len(df))
             with col2:
-                st.metric("Total Amount", f"₹{df['Amount'].sum():,.2f}")
+                total_amount = df['Amount'].sum()
+                st.metric("Total Amount", f"₹{total_amount:,.2f}")
             with col3:
                 st.metric("This Month", f"₹{monthly_expenses:,.2f}")
             with col4:
@@ -170,8 +175,8 @@ def view_data(supabase):
                 st.metric(
                     "Remaining",
                     f"₹{remaining_budget:,.2f}",
-                    delta=f"{-budget_percentage:.1f}%" if budget_percentage > 0 else "0%",
-                    delta_color="inverse"
+                    delta=f"{remaining_budget:,.2f}",
+                    delta_color="normal" if remaining_budget >= 0 else "inverse"
                 )
 
             # Budget Progress Bar
